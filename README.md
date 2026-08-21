@@ -1,33 +1,33 @@
-# JM Barberclub — Chatbot de Agendamento
+# 💈 JM Barberclub — Chatbot de Agendamento
 
-Aplicação Next.js mobile-first, desenvolvida somente com JavaScript/JSX. O chatbot registra agendamentos reais no Supabase, mostra os horários já ocupados e protege no banco os serviços exclusivos do William.
+## 📖 Introdução
+O **JM Barberclub** é uma aplicação web moderna com foco em dispositivos móveis (*mobile-first*), desenvolvida para otimizar e automatizar a experiência de agendamento em barbearias. A plataforma conta com um assistente inteligente em formato de chatbot, permitindo que os clientes marquem horários, consultem a disponibilidade em tempo real e interajam com os serviços de forma ágil e intuitiva. 
 
-## Configuração
+O sistema foi arquitetado para garantir uma gestão eficiente de horários, controle de profissionais e segurança nos dados, integrando-se diretamente com um banco de dados relacional robusto.
 
-1. Como o seu banco já possui as tabelas, não execute `supabase/schema.sql`.
-2. Copie `.env.example` como `.env.local` e preencha a URL e a Anon Key do projeto.
-3. A integração usa: `services`, `barbers`, `barber_services`, `clients` e `appointments`.
-4. Instale e execute:
+---
 
-```bash
-npm install
-npm run dev
-```
+## 🚀 Ferramentas e Tecnologias Utilizadas
 
-Abra `http://localhost:3000`.
+O projeto foi construído utilizando um conjunto moderno de tecnologias voltadas para performance e escalabilidade:
 
-Antes de usar agendamentos, execute também `supabase/chatbot-rpc.sql` no SQL Editor. Ele cria as funções seguras necessárias para o chatbot consultar horários e inserir agendamentos sem violar as políticas RLS.
+* **Frontend & Lógica:** 
+  * **Next.js** (Framework React com foco em experiência mobile-first)
+  * **JavaScript (JSX)** para estruturação dos componentes e interatividade do chat.
+  * **Tailwind CSS** (ou estilização moderna) para o design responsivo.
+* **Backend & Banco de Dados:**
+  * **Supabase** (Plataforma Backend-as-a-Service baseada em PostgreSQL).
+  * **Funções RPC do PostgreSQL** para regras de negócio seguras e consultas customizadas de horários.
+* **Hospedagem & Deploy:**
+  * **Vercel** para distribuição contínua e alta disponibilidade em produção.
 
-## Personalização rápida
+---
 
-- Serviços, preços, durações e imagens: `lib/data.js`.
-- Barbeiros e imagens de perfil: `lib/data.js`. Preencha `image` com uma URL; enquanto estiver vazia, é exibido um placeholder visual.
-- Horários de funcionamento: `lib/data.js`.
+## 🛠️ Arquitetura e Integração
 
-As durações dos serviços começam em `0`, conforme solicitado, e podem ser ajustadas diretamente no mesmo arquivo.
-
-### Campos esperados no banco existente
-
-`services`: `id`, `name`, `price`, `duration_minutes`, `image_url` · `barbers`: `id`, `name`, `role`, `image_url` · `barber_services`: `barber_id`, `service_id` · `clients`: `id`, `name`, `phone` (único) · `appointments`: `client_id`, `barber_id`, `service_id`, `appointment_date`, `appointment_time`, `status`.
-
-Se algum nome de coluna for diferente, ajuste apenas `lib/appointments.js`.
+A aplicação se conecta a um ecossistema de dados estruturado nas seguintes tabelas do Supabase:
+* **`services`**: Catálogo de serviços oferecidos, preços e durações.
+* **`barbers`**: Perfil dos profissionais da barbearia.
+* **`barber_services`**: Relacionamento e personalização de serviços por profissional.
+* **`clients`**: Base de clientes cadastrados no sistema.
+* **`appointments`**: Registro central de agendamentos e status de atendimento.
