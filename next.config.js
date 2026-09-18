@@ -5,7 +5,43 @@ const withPWAConfig = withPWA({
   cacheOnFrontendNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
+  workboxOptions: {import withPWA from "@ducanh2912/next-pwa";
+
+const withPWAConfig = withPWA({
+  dest: "public",
+  cacheOnFrontendNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
   workboxOptions: {
+    skipWaiting: true,
+    clientsClaim: true,
+    cleanupOutdatedCaches: true, // Limpa os caches de versões anteriores automaticamente
+    // Evita que o service worker coloque chamadas de API ou rotas dinâmicas em cache offline obsoleto
+    navigateFallbackDenylist: [/^\/api/],
+  },
+  disable: process.env.NODE_ENV === "development",
+});
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        ],
+      },
+    ];
+  },
+};
+
+export default withPWAConfig(nextConfig);
     skipWaiting: true,
     clientsClaim: true,
   },
