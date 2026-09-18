@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   1. Configurações Globais
+   ========================================================================== */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #09090b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   2. Listagem e Cards de Serviços (Horizontal Scroll)
+   ========================================================================== */
+.service-list {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.1rem 0.1rem 0.4rem;
+  margin: 0 -0.1rem;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.service-list::-webkit-scrollbar {
+  display: none;
+}
+
+.service-card {
+  position: relative;
+  flex: 0 0 9.75rem;
+  overflow: hidden;
+  padding: 0.55rem;
+  border: 1px solid #3f3f46;
+  border-radius: 1rem;
+  background: #09090b;
+  color: #f4f4f5;
+  text-align: left;
+  transition: 0.15s;
+  scroll-snap-align: start;
+}
+
+/* Estado de seleção e hover unificados para serviços e barbeiros */
+.service-card:hover,
+.service-card.selected,
+.barber-card.selected {
+  border-color: #2563eb;
+  background: #172554;
+}
+
+.service-photo {
+  width: 100%;
+  height: 7.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.service-card b,
+.barber-card b {
+  display: block;
+  padding: 0 0.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.service-card small {
+  display: block;
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  margin-top: 0.12rem;
+}
+
+/* ==========================================================================
+   3. Indicadores Visuais de Seleção (Radio / Checkbox Dots)
+   ========================================================================== */
+.selection-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 2px solid #71717a;
+}
+
+.service-card .selection-dot {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 1.15rem;
+}
+
+.selected .selection-dot {
+  border-color: #60a5fa;
+  background: #60a5fa;
+  box-shadow: inset 0 0 0 2px #172554;
+}
+
+/* ==========================================================================
+   4. Cards de Barbeiros
+   ========================================================================== */
+.barber-card {
+  padding: 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid #3f3f46;
+  background: #09090b;
+  color: #f4f4f5;
+  text-align: left;
+  transition: 0.15s;
+}
+
+.barber-card:disabled {
+  opacity: 0.35;
+}
+
+.barber-card b {
+  margin-top: 0.5rem;
+}
+
+.barber-photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.8rem;
+}
+
+/* ==========================================================================
+   5. Carrossel de Datas
+   ========================================================================== */
+.date-carousel {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.1rem 0.1rem 0.4rem;
+  margin: 0 -0.1rem;
+  scrollbar-width: none;
+}
+
+.date-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.date-card {
+  flex: 0 0 5.4rem;
+  height: 6.7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  border: 1px solid #3f3f46;
+  border-radius: 1.25rem;
+  color: #d4d4d8;
+  background: linear-gradient(#3f3f46, #18181b);
+}
+
+.date-card span {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.date-card b {
+  font-size: 1.65rem;
+  line-height: 1;
+  color: white;
+}
+
+.date-card small {
+  font-size: 0.65rem;
+}
+
+.date-card.selected {
+  color: #18181b;
+  border-color: white;
+  background: linear-gradient(#fff, #a1a1aa);
+}
+
+.date-card.selected b {
+  color: #18181b;
+}
+
+/* ==========================================================================
+   6. Botões de Horários (Time Slots)
+   ========================================================================== */
+.time-button {
+  min-height: 2.45rem;
+  border-radius: 0.75rem;
+  border: 1px solid #3f3f46;
+  background: #09090b;
+  color: #e4e4e7;
+  font-size: 0.875rem;
+}
+
+.time-button:disabled {
+  color: #71717a;
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.time-button.selected {
+  border-color: #2563eb;
+  background: #1d4ed8;
+  color: white;
+}
+
+/* ==========================================================================
+   7. Ações e Botões de Navegação (CTA, Voltar, Enviar)
+   ========================================================================== */
+.action-button,
+.back-button,
+.send-button {
+  min-height: 3rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.action-button {
+  width: 100%;
+  border: 0;
+  background: #2563eb;
+  color: white;
+}
+
+.action-button:disabled {
+  opacity: 0.45;
+}
+
+.back-button {
+  border: 1px solid #52525b;
+  background: #18181b;
+  color: #e4e4e7;
+}
+
+.send-button {
+  width: 3rem;
+  border: 0;
+  background: #2563eb;
+  color: white;
+}
