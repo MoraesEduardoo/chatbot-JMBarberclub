@@ -1,13 +1,37 @@
-import withPWA from "@ducanh2912/next-pwa";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        ],
+      },
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+        ],
+      },
+    ];
+  },
+};
 
-const withPWAConfig = withPWA({
-  dest: "public",
-  cacheOnFrontendNav: true,
-  aggressiveFrontEndNavCaching: true,
-  reloadOnOnline: true,
-  workboxOptions: {import withPWA from "@ducanh2912/next-pwa";
+// Configuração segura do PWA compatível com .js (CommonJS)
+let withPWA;
+try {
+  withPWA = require("@ducanh2912/next-pwa").default || require("@ducanh2912/next-pwa");
+} catch (e) {
+  withPWA = (config) => config;
+}
 
-const withPWAConfig = withPWA({
+module.exports = withPWA({
   dest: "public",
   cacheOnFrontendNav: true,
   aggressiveFrontEndNavCaching: true,
@@ -15,56 +39,8 @@ const withPWAConfig = withPWA({
   workboxOptions: {
     skipWaiting: true,
     clientsClaim: true,
-    cleanupOutdatedCaches: true, // Limpa os caches de versões anteriores automaticamente
-    // Evita que o service worker coloque chamadas de API ou rotas dinâmicas em cache offline obsoleto
-    navigateFallbackDenylist: [/^\/api/],
+    cleanupOutdatedCaches: true, // Limpa caches antigos automaticamente
+    navigateFallbackDenylist: [/^\/api/], // Evita cache nas rotas de API
   },
   disable: process.env.NODE_ENV === "development",
-});
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-XSS-Protection", value: "1; mode=block" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-        ],
-      },
-    ];
-  },
-};
-
-export default withPWAConfig(nextConfig);
-    skipWaiting: true,
-    clientsClaim: true,
-  },
-  disable: process.env.NODE_ENV === "development",
-});
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-XSS-Protection", value: "1; mode=block" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-        ],
-      },
-    ];
-  },
-};
-
-export default withPWAConfig(nextConfig);
+})(nextConfig);
