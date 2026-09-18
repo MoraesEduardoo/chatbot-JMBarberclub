@@ -1,6 +1,10 @@
 import "./globals.css";
 
-export const metadata = { title: "JM Barberclub | Agendamento", description: "Agende seu horário no JM Barberclub." };
+export const metadata = {
+  title: "JM Barberclub | Agendamento",
+  description: "Agende seu horário no JM Barberclub.",
+  manifest: "/manifest.json", // Adiciona a referência do PWA aqui de forma nativa
+};
 
 // viewportFit + interactiveWidget fazem o layout respeitar a área segura do
 // celular (barra de gestos) e, principalmente, fazem o conteúdo ENCOLHER
