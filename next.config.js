@@ -1,22 +1,12 @@
-const withPWA = require('next-pwa')({
+const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
-  register: true,
-  skipWaiting: true,
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
   disable: process.env.NODE_ENV === 'development',
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\/.*/i,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'google-fonts',
-        expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-      },
-    },
-    {
-      urlPattern: /\/api\/?.*/i,
-      handler: 'NetworkOnly', // Impede cache em rotas de API e agenda
-    },
-  ],
+  workboxOptions: {
+    disableDevLogs: true,
+  },
 })
 
 /** @type {import('next').NextConfig} */
