@@ -24,7 +24,9 @@ import {
   getCatalog,
   saveAppointment,
 } from "@/lib/appointments";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 const emptyDraft = {
   name: "",
