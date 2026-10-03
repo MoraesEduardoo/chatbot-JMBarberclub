@@ -1,0 +1,6 @@
+{
+  "name": "jm-barberclub-core",
+  "private": true,
+  "type": "module",
+  "description": "Lógica pura do chatbot (sem React, sem Supabase). O \"type: module\" vale só para esta pasta e permite rodar os testes com `node --test`."
+}
