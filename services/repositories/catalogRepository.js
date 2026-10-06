@@ -29,15 +29,30 @@ export async function loadCatalog() {
     return data?.publicUrl ?? "";
   };
 
+  // Helper para remover acentos e normalizar strings para comparação segura
+  const normalizeStr = (str) => {
+    if (!str) return "";
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  };
+
   const galleryData = gallery.data ?? [];
 
   return {
     services: services.data.map((s) => {
-      // Procura uma foto na galeria que combine com o nome ou categoria do serviço
-      const matchedPhoto = galleryData.find(
-        (g) => g.title?.toLowerCase().includes(s.name.toLowerCase()) ||
-          g.category?.toLowerCase().includes(s.name.toLowerCase())
-      );
+      const normalizedServiceName = normalizeStr(s.name);
+
+      // Procura na galeria combinando título ou categoria de forma limpa (sempre tolerante a acentos)
+      const matchedPhoto = galleryData.find((g) => {
+        const normTitle = normalizeStr(g.title);
+        const normCategory = normalizeStr(g.category);
+        return normTitle.includes(normalizedServiceName) || 
+               normalizedServiceName.includes(normTitle) ||
+               normCategory.includes(normalizedServiceName);
+      });
 
       return {
         id: s.id,
