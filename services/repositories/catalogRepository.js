@@ -1,73 +1,44 @@
-/** Catálogo (serviços, barbeiros e vínculos). Devolve SEMPRE o formato normalizado do domínio. */
-import { FALLBACK_BARBERS, FALLBACK_SERVICES, RESTRICTED_SERVICE_NAMES } from "../../core/domain/config.js";
-import { getSupabase } from "../supabase/browser.js";
-import { AppError } from "../errors.js";
+import { Image as ImageIcon } from "lucide-react";
+import { formatPrice } from "@/core/domain/time";
 
-export async function loadCatalog() {
-  const supabase = getSupabase();
-  if (!supabase) {
-    return { services: [...FALLBACK_SERVICES], barbers: [...FALLBACK_BARBERS], links: [] };
-  }
+export function Picture({ name, image, className = "" }) {
+  return image ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={image} alt={name} className={`absolute inset-0 w-full h-full object-cover opacity-40 ${className}`} />
+  ) : (
+    <div className={`absolute inset-0 grid place-items-center bg-zinc-800 text-zinc-600 ${className}`}><ImageIcon size={28} /></div>
+  );
+}
 
-  const [services, barbers, links, gallery] = await Promise.all([
-    supabase.from("services").select("id, name, price, default_duration_minutes"),
-    supabase.from("barbers").select("id, name"),
-    supabase.from("barber_services").select("barber_id, service_id, custom_duration_minutes"),
-    supabase.from("haircut_gallery").select("id, title, image_path, category, is_active").eq("is_active", true),
-  ]);
-
-  if (services.error || barbers.error || links.error) {
-    console.error("[chat] falha ao carregar catálogo:", services.error ?? barbers.error ?? links.error);
-    throw new AppError("unknown", "Não foi possível carregar os dados da barbearia.");
-  }
-
-  // Helper para gerar a URL pública da foto no Storage do Supabase
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return "";
-    if (imagePath.startsWith("http")) return imagePath;
-    const { data } = supabase.storage.from("haircut-photos").getPublicUrl(imagePath);
-    return data?.publicUrl ?? "";
-  };
-
-  // Helper para remover acentos e normalizar strings para comparação segura
-  const normalizeStr = (str) => {
-    if (!str) return "";
-    return str
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim();
-  };
-
-  const galleryData = gallery.data ?? [];
-
-  return {
-    services: services.data.map((s) => {
-      const normalizedServiceName = normalizeStr(s.name);
-
-      // Procura na galeria combinando título ou categoria de forma limpa (sempre tolerante a acentos)
-      const matchedPhoto = galleryData.find((g) => {
-        const normTitle = normalizeStr(g.title);
-        const normCategory = normalizeStr(g.category);
-        return normTitle.includes(normalizedServiceName) || 
-               normalizedServiceName.includes(normTitle) ||
-               normCategory.includes(normalizedServiceName);
-      });
-
-      return {
-        id: s.id,
-        name: s.name,
-        price: Number(s.price),
-        durationMinutes: s.default_duration_minutes ?? 0,
-        image: matchedPhoto ? getImageUrl(matchedPhoto.image_path) : "",
-        restricted: RESTRICTED_SERVICE_NAMES.includes(s.name),
-      };
-    }),
-    barbers: barbers.data.length ? barbers.data.map((b) => ({ id: b.id, name: b.name, image: "" })) : [...FALLBACK_BARBERS],
-    links: links.data.map((l) => ({
-      barberId: l.barber_id,
-      serviceId: l.service_id,
-      customDurationMinutes: l.custom_duration_minutes ?? null,
-    })),
-  };
+/** Cartões de serviço (seleção múltipla). O número no canto permite responder "1 e 3" por texto. */
+export default function ServicesWidget({ ctx, act }) {
+  const { services } = ctx.catalog;
+  const selected = new Set(ctx.draft.services.map((s) => s.id));
+  return (
+    <div className="service-list grid grid-cols-2 gap-2 my-2">
+      {services.map((service, index) => (
+        <button
+          key={service.id}
+          type="button"
+          aria-pressed={selected.has(service.id)}
+          onClick={() => act({ type: "TOGGLE_SERVICE", id: service.id })}
+          className={`relative overflow-hidden rounded-xl p-3 flex flex-col justify-between text-left border transition-all h-32 ${
+            selected.has(service.id) ? "border-red-500 bg-zinc-900/90 shadow-lg shadow-red-500/10" : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
+          }`}
+        >
+          <Picture name={service.name} image={service.image} />
+          <div className="relative z-10 flex justify-between items-start w-full">
+            <span className="grid place-items-center w-6 h-6 rounded-full bg-black/60 text-xs font-bold text-white border border-zinc-700">{index + 1}</span>
+            <span className={`w-4 h-4 rounded-full border grid place-items-center ${selected.has(service.id) ? "border-red-500 bg-red-500 text-white" : "border-zinc-600 bg-transparent"}`}>
+              {selected.has(service.id) && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+            </span>
+          </div>
+          <div className="relative z-10 mt-auto">
+            <b className="block text-sm font-semibold text-white drop-shadow">{service.name}</b>
+            <small className="text-xs text-zinc-300 drop-shadow">{formatPrice(service.price)}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}</small>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
 }
