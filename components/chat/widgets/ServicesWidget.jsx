@@ -24,7 +24,7 @@ export default function ServicesWidget({ ctx, act }) {
   const selected = new Set(ctx.draft.services.map((s) => s.id));
 
   return (
-    <div className="service-list grid grid-cols-2 gap-2 my-2">
+    <div className="grid grid-cols-2 gap-2 my-2 w-full">
       {services.map((service, index) => {
         const isSelected = selected.has(service.id);
         return (
@@ -33,7 +33,7 @@ export default function ServicesWidget({ ctx, act }) {
             type="button"
             aria-pressed={isSelected}
             onClick={() => act({ type: "TOGGLE_SERVICE", id: service.id })}
-            className={`relative overflow-hidden rounded-xl p-3 flex flex-col justify-between text-left border transition-all h-36 ${
+            className={`relative overflow-hidden rounded-xl p-3 flex flex-col justify-between text-left border transition-all h-36 w-full ${
               isSelected
                 ? "border-red-500 bg-zinc-900/90 shadow-lg shadow-red-500/10"
                 : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
@@ -61,7 +61,7 @@ export default function ServicesWidget({ ctx, act }) {
 
             {/* Rodapé do card (Nome, Preço e Duração) */}
             <div className="relative z-10 mt-auto">
-              <b className="block text-sm font-semibold text-white drop-shadow-md">
+              <b className="block text-sm font-semibold text-white drop-shadow-md truncate">
                 {service.name}
               </b>
               <small className="text-xs text-zinc-300 drop-shadow-md">
