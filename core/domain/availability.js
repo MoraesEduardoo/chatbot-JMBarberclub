@@ -1,41 +1,66 @@
 /**
  * Regras de agenda: quais dias/horários podem ser oferecidos.
- * Funções puras — recebem `nowMs` e a lista de horários já ocupados.
+ * Funções puras — recebem `nowMs`, horários do banco e a lista de horários já ocupados.
  */
 import { BUSINESS_HOURS, SLOT_MINUTES, MIN_LEAD_MINUTES, BOOKING_WINDOW_DAYS } from "./config.js";
 import { addDays, weekdayOf, todayKey, shopClock, timeToMinutes, minutesToTime } from "./time.js";
 
-export const businessHoursOn = (dateKey) => BUSINESS_HOURS[weekdayOf(dateKey)] ?? null;
+/** Retorna o expediente e pausas do dia, priorizando os dados do banco (`barberSchedule`) se existirem */
+export function businessHoursOn(dateKey, barberSchedule = null) {
+  const weekday = weekdayOf(dateKey); // ex: 'seg', 'ter', etc. ou índice numérico dependendo do seu config
 
-/** Datas (YYYY-MM-DD) em que a barbearia abre, de hoje até o fim da janela de agendamento. */
-export function listBookableDays(nowMs, total = BOOKING_WINDOW_DAYS) {
-  const start = todayKey(nowMs);
-  return Array.from({ length: total }, (_, i) => addDays(start, i)).filter(businessHoursOn);
+  // Se o banco forneceu a escala específica do barbeiro para o dia
+  if (barberSchedule && barberSchedule[weekday]) {
+    return barberSchedule[weekday];
+  }
+
+  return BUSINESS_HOURS[weekday] ?? null;
 }
 
-/** Todas as células de 30 min do expediente do dia (["09:00", "09:30", …]). */
-export function gridFor(dateKey) {
-  const hours = businessHoursOn(dateKey);
-  if (!hours) return [];
+/** Datas (YYYY-MM-DD) em que a barbearia abre, de hoje até o fim da janela de agendamento. */
+export function listBookableDays(nowMs, total = BOOKING_WINDOW_DAYS, barberSchedule = null) {
+  const start = todayKey(nowMs);
+  return Array.from({ length: total }, (_, i) => addDays(start, i)).filter(
+    (dateKey) => businessHoursOn(dateKey, barberSchedule) !== null
+  );
+}
+
+/** Todas as células de 30 min do expediente do dia, excluindo o horário de almoço/pausa vindo do banco. */
+export function gridFor(dateKey, barberSchedule = null) {
+  const hours = businessHoursOn(dateKey, barberSchedule);
+  if (!hours || hours.closed || !hours.start || !hours.end) return [];
+
   const start = timeToMinutes(hours.start);
   const end = timeToMinutes(hours.end);
-  return Array.from({ length: Math.max(0, Math.floor((end - start) / SLOT_MINUTES)) }, (_, i) =>
+
+  const allSlots = Array.from({ length: Math.max(0, Math.floor((end - start) / SLOT_MINUTES)) }, (_, i) =>
     minutesToTime(start + i * SLOT_MINUTES),
   );
+
+  // Intervalo de almoço/pausa (suporta lunchStart/lunchEnd ou breakStart/breakEnd vindos de barber_schedules)
+  const lStart = hours.lunchStart ?? hours.breakStart ?? null;
+  const lEnd = hours.lunchEnd ?? hours.breakEnd ?? null;
+
+  if (!lStart || !lEnd) return allSlots;
+
+  const lunchStartMinutes = timeToMinutes(lStart);
+  const lunchEndMinutes = timeToMinutes(lEnd);
+
+  // Filtra removendo os horários que caem dentro da pausa de almoço
+  return allSlots.filter((time) => {
+    const minutes = timeToMinutes(time);
+    if (minutes >= lunchStartMinutes && minutes < lunchEndMinutes) {
+      return false; // Remove o horário de almoço
+    }
+    return true;
+  });
 }
 
 /**
  * Situação de cada horário do dia.
- * reason: null (livre) | "past" | "booked" | "overflow" (não cabe antes de fechar)
- *
- * `durationMinutes` = soma da duração dos serviços escolhidos. Um serviço de
- * 60 min ocupa 2 células; se a segunda já estiver ocupada, o horário é "booked".
- * LIMITAÇÃO: `booked` só traz horários de INÍCIO. Se a RPC chatbot_booked_times
- * não expandir agendamentos longos, um corte de 60 min já marcado às 10:00
- * deixará 10:30 livre para o chat — o banco é a fonte final da verdade.
  */
-export function getSlots(dateKey, { nowMs, booked = [], durationMinutes = 0 } = {}) {
-  const grid = gridFor(dateKey);
+export function getSlots(dateKey, { nowMs, booked = [], durationMinutes = 0, barberSchedule = null } = {}) {
+  const grid = gridFor(dateKey, barberSchedule);
   const bookedSet = booked instanceof Set ? booked : new Set(booked);
   const needed = Math.max(1, Math.ceil(durationMinutes / SLOT_MINUTES));
   const clock = shopClock(nowMs);
@@ -54,10 +79,10 @@ export function getSlots(dateKey, { nowMs, booked = [], durationMinutes = 0 } = 
 }
 
 /** Erro de uma data escolhida: null se válida, senão "past" | "too_far" | "closed". */
-export function checkDate(dateKey, nowMs) {
+export function checkDate(dateKey, nowMs, barberSchedule = null) {
   const today = todayKey(nowMs);
   if (dateKey < today) return "past";
   if (dateKey > addDays(today, BOOKING_WINDOW_DAYS - 1)) return "too_far";
-  if (!businessHoursOn(dateKey)) return "closed";
+  if (!businessHoursOn(dateKey, barberSchedule)) return "closed";
   return null;
 }
