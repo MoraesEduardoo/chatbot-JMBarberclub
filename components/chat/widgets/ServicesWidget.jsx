@@ -1,20 +1,28 @@
+import { useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { formatPrice } from "@/core/domain/time";
 
 export function Picture({ name, image, className = "" }) {
-  return image ? (
+  const [hasError, setHasError] = useState(false);
+
+  if (!image || hasError) {
+    return (
+      <div
+        className={`absolute inset-0 grid place-items-center bg-zinc-900 text-zinc-700 z-0 ${className}`}
+      >
+        <ImageIcon size={28} />
+      </div>
+    );
+  }
+
+  return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={image}
       alt={name}
+      onError={() => setHasError(true)}
       className={`absolute inset-0 w-full h-full object-cover opacity-50 z-0 ${className}`}
     />
-  ) : (
-    <div
-      className={`absolute inset-0 grid place-items-center bg-zinc-900 text-zinc-700 z-0 ${className}`}
-    >
-      <ImageIcon size={28} />
-    </div>
   );
 }
 
@@ -39,7 +47,7 @@ export default function ServicesWidget({ ctx, act }) {
                 : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
             }`}
           >
-            {/* Imagem de fundo preenchendo todo o card */}
+            {/* Imagem de fundo preenchendo todo o card com tratamento de erro 400 */}
             <Picture name={service.name} image={service.image} />
 
             {/* Gradiente escuro por cima da foto para legibilidade do texto */}
