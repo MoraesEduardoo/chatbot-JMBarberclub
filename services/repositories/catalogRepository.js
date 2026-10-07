@@ -9,7 +9,6 @@ export async function loadCatalog() {
     return { services: [...FALLBACK_SERVICES], barbers: [...FALLBACK_BARBERS], links: [] };
   }
 
-  // Carrega serviços, barbeiros e vínculos primários
   const [services, barbers, links] = await Promise.all([
     supabase.from("services").select("id, name, price, default_duration_minutes"),
     supabase.from("barbers").select("id, name"),
@@ -21,7 +20,6 @@ export async function loadCatalog() {
     throw new AppError("unknown", "Não foi possível carregar os dados da barbearia.");
   }
 
-  // Tenta carregar a galeria de forma isolada para que falhas nela nunca quebrem o chat
   let galleryData = [];
   try {
     const gallery = await supabase
@@ -33,10 +31,9 @@ export async function loadCatalog() {
       galleryData = gallery.data ?? [];
     }
   } catch (err) {
-    console.warn("[chat] Aviso: galeria de cortes indisponível no momento.", err);
+    console.warn("[chat] Aviso: galeria de cortes indisponível.", err);
   }
 
-  // Helper para gerar a URL pública da foto no Storage do Supabase
   const getImageUrl = (imagePath) => {
     if (!imagePath) return "";
     if (imagePath.startsWith("http")) return imagePath;
@@ -44,7 +41,7 @@ export async function loadCatalog() {
     return data?.publicUrl ?? "";
   };
 
-  // Helper para remover acentos e normalizar strings para comparação segura
+  // Normalização agressiva: remove acentos, espaços extras e transforma em minúsculas
   const normalizeStr = (str) => {
     if (!str) return "";
     return str
@@ -58,12 +55,14 @@ export async function loadCatalog() {
     services: services.data.map((s) => {
       const normalizedServiceName = normalizeStr(s.name);
 
+      // Procura na galeria uma foto cujo título ou categoria dê "match" com o serviço
       const matchedPhoto = galleryData.find((g) => {
         const normTitle = normalizeStr(g.title);
         const normCategory = normalizeStr(g.category);
-        return normTitle.includes(normalizedServiceName) ||
-          normalizedServiceName.includes(normTitle) ||
-          normCategory.includes(normalizedServiceName);
+        return normTitle === normalizedServiceName ||
+          normCategory === normalizedServiceName ||
+          normTitle.includes(normalizedServiceName) ||
+          normalizedServiceName.includes(normTitle);
       });
 
       return {
