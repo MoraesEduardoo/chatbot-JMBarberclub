@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Image as ImageIcon } from "lucide-react";
 import { formatPrice } from "@/core/domain/time";
 
 /**
@@ -40,60 +40,96 @@ export function Picture({ name, image, className = "" }) {
   );
 }
 
-/** Cartões de serviço (seleção múltipla) — otimizados para gestos e toque ágil no iOS */
+/**
+ * Carrossel Horizontal de Serviços (Mobile-First / iOS Swiper):
+ * - Alinhamento flexbox horizontal contínuo (`flex overflow-x-auto`)
+ * - Suporte nativo ao WebKit do iPhone com rolagem suave por inércia (`-webkit-overflow-scrolling: touch`)
+ * - Ponto de parada magnético (`scroll-snap-type: x mandatory` / `snap-start`) para fixação de cada card
+ * - Margem de respiro lateral (padding) para que o primeiro e último card não fiquem colados
+ */
 export default function ServicesWidget({ ctx, act }) {
   const { services } = ctx.catalog;
   const selected = new Set(ctx.draft.services.map((s) => s.id));
 
   return (
-    <div className="grid grid-cols-2 gap-2 my-2 w-full">
-      {services.map((service, index) => {
-        const isSelected = selected.has(service.id);
-        return (
-          <button
-            key={service.id}
-            type="button"
-            aria-pressed={isSelected}
-            onClick={() => act({ type: "TOGGLE_SERVICE", id: service.id })}
-            className={`relative overflow-hidden rounded-xl p-3 flex flex-col justify-between text-left border h-36 w-full select-none touch-manipulation transition-all active:scale-[0.98] ${
-              isSelected
-                ? "border-red-500 bg-zinc-900/90 shadow-lg shadow-red-500/10"
-                : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 active:bg-zinc-800/80"
-            }`}
-          >
-            {/* Imagem de fundo com tratamento WebKit */}
-            <Picture name={service.name} image={service.image} />
+    <div className="w-full my-2">
+      {/* 
+        Container de rolagem lateral (Swiper Horizontal):
+        - flex: alinha os cartões lado a lado em linha única
+        - overflow-x-auto: ativa a rolagem horizontal
+        - scrollbar-none: remove barra de rolagem visualmente poluída
+        - snap-x snap-mandatory: alinhamento magnético ao deslizar
+        - overscroll-contain: impede que o scroll horizontal acione o efeito elástico vertical da tela
+      */}
+      <div
+        className="flex gap-2.5 overflow-x-auto pb-2.5 pt-1 px-0.5 scrollbar-none snap-x snap-mandatory overscroll-x-contain ios-scroll-momentum"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        {services.map((service, index) => {
+          const isSelected = selected.has(service.id);
+          return (
+            <button
+              key={service.id}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => act({ type: "TOGGLE_SERVICE", id: service.id })}
+              /* 
+                Estrutura do Card no Carrossel:
+                - flex-none / w-[9.5rem] (152px): largura fixa ideal para carrossel mobile sem esticar
+                - h-40 (160px): altura compacta verticalmente que não polui o chat
+                - snap-start: cada cartão alinha magneticamente ao início ao soltar o dedo
+                - touch-manipulation & active:scale-[0.97]: feedback tátil instantâneo no iPhone
+              */
+              className={`relative flex-none w-[9.5rem] sm:w-[10.25rem] h-40 overflow-hidden rounded-2xl p-3 flex flex-col justify-between text-left border transition-all snap-start select-none touch-manipulation active:scale-[0.97] ${
+                isSelected
+                  ? "border-red-500 bg-zinc-900/90 shadow-lg shadow-red-500/20 ring-1 ring-red-500"
+                  : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 active:bg-zinc-800/80"
+              }`}
+            >
+              {/* Imagem de fundo com carregamento assíncrono e tratamento de erro WebKit */}
+              <Picture name={service.name} image={service.image} />
 
-            {/* Gradiente escuro para legibilidade tipográfica superior */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30 z-[1] pointer-events-none" />
+              {/* Gradiente escuro para legibilidade tipográfica superior */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/30 z-[1] pointer-events-none" />
 
-            {/* Topo do card (Número do badge e indicador de seleção) */}
-            <div className="relative z-10 flex justify-between items-start w-full pointer-events-none">
-              <span className="grid place-items-center w-6 h-6 rounded-full bg-black/70 text-xs font-bold text-white border border-zinc-700">
-                {index + 1}
-              </span>
-              <span
-                className={`w-4 h-4 rounded-full border grid place-items-center transition-colors ${
-                  isSelected ? "border-red-500 bg-red-500 text-white" : "border-zinc-600 bg-transparent"
-                }`}
-              >
-                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-              </span>
-            </div>
+              {/* Topo do card (Número de referência rápida e indicador circular de seleção) */}
+              <div className="relative z-10 flex justify-between items-start w-full pointer-events-none">
+                <span className="grid place-items-center w-6 h-6 rounded-full bg-black/80 text-xs font-bold text-white border border-zinc-700 shadow">
+                  {index + 1}
+                </span>
+                <span
+                  className={`w-4 h-4 rounded-full border grid place-items-center transition-colors ${
+                    isSelected ? "border-red-500 bg-red-500 text-white shadow-sm shadow-red-500" : "border-zinc-600 bg-black/40"
+                  }`}
+                >
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </span>
+              </div>
 
-            {/* Rodapé do card (Nome, Preço e Duração) */}
-            <div className="relative z-10 mt-auto pointer-events-none">
-              <b className="block text-sm font-semibold text-white drop-shadow-md truncate">
-                {service.name}
-              </b>
-              <small className="text-xs text-zinc-300 drop-shadow-md">
-                {formatPrice(service.price)}
-                {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
-              </small>
-            </div>
-          </button>
-        );
-      })}
+              {/* Rodapé do card (Nome, Preço e Duração estimada) */}
+              <div className="relative z-10 mt-auto pointer-events-none">
+                <b className="block text-sm font-semibold text-white drop-shadow-md truncate leading-tight">
+                  {service.name}
+                </b>
+                <small className="text-xs text-zinc-300 drop-shadow-md mt-0.5 block font-medium">
+                  {formatPrice(service.price)}
+                  {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                </small>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Dica visual de navegação tátil mobile */}
+      <p className="mt-1 flex items-center gap-1 text-[0.7rem] text-zinc-400 select-none">
+        <ChevronRight size={12} className="text-red-400 shrink-0" />
+        <span>Deslize para o lado para ver todos os cortes e valores</span>
+      </p>
     </div>
   );
 }
