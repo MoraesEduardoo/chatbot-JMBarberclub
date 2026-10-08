@@ -18,15 +18,23 @@ import { normalizePhone } from "../../core/domain/phone.js";
 import { getSupabase } from "../supabase/browser.js";
 import { AppError, toAppError } from "../errors.js";
 
+// In-memory demo store for when Supabase is not configured
+let demoAppointments = [];
+
 function requireSupabase() {
   const supabase = getSupabase();
-  if (!supabase) throw new AppError("setup", "O Supabase não está configurado neste ambiente.");
+  if (!supabase) return null;
   return supabase;
 }
 
 /** Horários ("HH:MM") de início já ocupados para o barbeiro no dia. */
 export async function fetchBookedTimes({ barberId, dateKey }) {
   const supabase = requireSupabase();
+  if (!supabase) {
+    return demoAppointments
+      .filter((a) => a.barberId === barberId && a.dateKey === dateKey && ACTIVE_STATUSES.includes(a.status))
+      .map((a) => a.time);
+  }
   const { data, error } = await supabase.rpc("chatbot_booked_times", { p_barber_id: barberId, p_date: dateKey });
   if (error) throw toAppError(error);
   return [...new Set((data || []).map((row) => String(row.appointment_time).slice(0, 5)))];
@@ -35,6 +43,29 @@ export async function fetchBookedTimes({ barberId, dateKey }) {
 /** Agendamentos ATIVOS e futuros do telefone, já agrupados (1 grupo = 1 reserva do cliente). */
 export async function listActiveAppointments({ phone, catalog }) {
   const supabase = requireSupabase();
+  if (!supabase) {
+    const norm = normalizePhone(phone);
+    const rows = demoAppointments
+      .filter((a) => a.phone === norm && ACTIVE_STATUSES.includes(a.status))
+      .map((a) => ({
+        id: a.id,
+        barberId: a.barberId,
+        barberName: a.barberName ?? catalog?.barbers.find((b) => b.id === a.barberId)?.name ?? "Profissional",
+        serviceId: a.serviceId,
+        serviceName: a.serviceName ?? catalog?.services.find((s) => s.id === a.serviceId)?.name ?? "Serviço",
+        startsAt: toTimestamp(a.dateKey, a.time),
+        status: a.status,
+        batchKey: a.batchKey ?? null,
+      }));
+
+    return groupAppointments(rows, {
+      durationOf: (row) => {
+        const service = catalog?.services.find((s) => s.id === row.serviceId);
+        return service ? getServiceDuration(catalog, service, row.barberId) : 0;
+      },
+    });
+  }
+
   const { data, error } = await supabase.rpc("chatbot_list_appointments", { p_phone: normalizePhone(phone) });
   if (error) throw toAppError(error);
 
@@ -66,6 +97,27 @@ export async function listActiveAppointments({ phone, catalog }) {
  */
 export async function createAppointments({ client, barberId, serviceIds, dateKey, time }) {
   const supabase = requireSupabase();
+  if (!supabase) {
+    const batchKey = new Date().toISOString();
+    const ids = [];
+    for (const serviceId of serviceIds) {
+      const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `apt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      demoAppointments.push({
+        id,
+        phone: normalizePhone(client.phone),
+        clientName: client.name,
+        barberId,
+        serviceId,
+        dateKey,
+        time,
+        status: "confirmado",
+        batchKey,
+      });
+      ids.push(id);
+    }
+    return ids;
+  }
+
   const { data, error } = await supabase.rpc("chatbot_create_appointments", {
     p_barber_id: barberId,
     p_service_ids: serviceIds,
@@ -100,6 +152,11 @@ async function findOwnAppointment({ client, barberId, dateKey, time }) {
 
 export async function cancelAppointments({ ids, phone }) {
   const supabase = requireSupabase();
+  if (!supabase) {
+    const idSet = new Set(ids);
+    demoAppointments = demoAppointments.map((a) => (idSet.has(a.id) ? { ...a, status: "cancelado" } : a));
+    return;
+  }
   const { error } = await supabase.rpc("chatbot_cancel_appointments", { p_ids: ids, p_phone: normalizePhone(phone) });
   if (error) throw toAppError(error);
 }
@@ -107,6 +164,11 @@ export async function cancelAppointments({ ids, phone }) {
 /** Move TODAS as linhas da reserva mantendo o espaçamento entre elas (a RPC aplica o mesmo deslocamento). */
 export async function rescheduleAppointments({ ids, phone, dateKey, time }) {
   const supabase = requireSupabase();
+  if (!supabase) {
+    const idSet = new Set(ids);
+    demoAppointments = demoAppointments.map((a) => (idSet.has(a.id) ? { ...a, dateKey, time } : a));
+    return;
+  }
   const { error } = await supabase.rpc("chatbot_reschedule_appointments", {
     p_ids: ids,
     p_phone: normalizePhone(phone),

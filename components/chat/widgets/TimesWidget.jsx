@@ -3,10 +3,14 @@ import { selectSlots } from "@/core/conversation/selectors";
 
 export default function TimesWidget({ ctx, act }) {
   const { status } = ctx.availability;
-  if (status === "loading") return <p className="text-zinc-400 animate-pulse">Consultando disponibilidade…</p>;
+  if (status === "loading") return <p className="text-zinc-400 animate-pulse text-sm">Consultando disponibilidade…</p>;
   if (status === "error") {
     return (
-      <button type="button" onClick={() => act({ type: "RETRY_AVAILABILITY" })} className="back-button px-4">
+      <button
+        type="button"
+        onClick={() => act({ type: "RETRY_AVAILABILITY" })}
+        className="back-button px-4 select-none touch-manipulation active:scale-[0.97]"
+      >
         Não consegui consultar — tentar de novo
       </button>
     );
@@ -15,7 +19,9 @@ export default function TimesWidget({ ctx, act }) {
   const slots = selectSlots(ctx).filter((slot) => slot.reason !== "past");
   return (
     <>
-      <p className="mb-3 flex items-center gap-1.5 text-xs text-zinc-400"><Clock3 size={15} /> Toque em um horário livre</p>
+      <p className="mb-3 flex items-center gap-1.5 text-xs text-zinc-400">
+        <Clock3 size={15} /> Toque em um horário livre
+      </p>
       <div className="grid grid-cols-3 gap-2">
         {slots.map((slot) => (
           <button
@@ -23,7 +29,9 @@ export default function TimesWidget({ ctx, act }) {
             type="button"
             disabled={!slot.available}
             onClick={() => act({ type: "PICK_TIME", time: slot.time }, slot.time)}
-            className={`time-button ${ctx.draft.time === slot.time ? "selected" : ""}`}
+            className={`time-button select-none touch-manipulation transition-transform ${
+              ctx.draft.time === slot.time ? "selected" : ""
+            }`}
           >
             {slot.reason === "booked" ? "Ocupado" : slot.time}
           </button>

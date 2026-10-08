@@ -3,33 +3,70 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   1. Configurações Globais e Correções para iOS (iPhone)
+   1. Configurações Globais e Correções Exaustivas para iOS (iPhone / Safari)
    ========================================================================== */
+:root {
+  --app-height: 100dvh;
+}
+
 html,
 body {
   height: 100%;
+  height: -webkit-fill-available;
   margin: 0;
+  padding: 0;
   background: #09090b;
-  -webkit-text-size-adjust: 100%; /* Evita zoom automático em inputs no Safari/iOS */
-  overscroll-behavior-y: none; /* Remove o efeito elástico (rubber-band) ao puxar a tela */
-  -webkit-tap-highlight-color: transparent; /* Remove o destaque cinza ao tocar em botões no mobile */
+  color: #f4f4f5;
+  
+  /* Previne zoom automático e distorção tipográfica no Safari / iOS */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  
+  /* Remove o efeito elástico (rubber-band) na raiz da página */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  
+  /* Remove o flash/destaque cinza ao tocar em qualquer elemento no WebKit */
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Desativa gestos conflitantes de duplo-toque para acelerar a resposta ao toque */
+  touch-action: manipulation;
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Suporte à área segura (Notch e barra inferior de gestos do iPhone) */
+/* Suporte dinâmico à área segura (Notch, Dynamic Island e Home Indicator) */
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
 
 .safe-area-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
 }
 
 /* ==========================================================================
-   2. Listagem e Cards de Serviços (Horizontal Scroll)
+   2. Regra Anti-Zoom do iOS em Inputs (Mínimo Obrigatório: 16px)
+   ========================================================================== */
+input,
+textarea,
+select {
+  font-size: 16px !important; /* WebKit aciona auto-zoom instantâneo se font-size < 16px */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ==========================================================================
+   3. Otimizações de Scroll e Momentum para WebKit / iOS
+   ========================================================================== */
+.ios-scroll-momentum {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ==========================================================================
+   4. Listagem e Cards de Serviços (Horizontal Scroll)
    ========================================================================== */
 .service-list {
   display: flex;
@@ -39,6 +76,8 @@ body {
   margin: 0 -0.1rem;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .service-list::-webkit-scrollbar {
@@ -55,12 +94,27 @@ body {
   background: #09090b;
   color: #f4f4f5;
   text-align: left;
-  transition: 0.15s;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
   scroll-snap-align: start;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Estado de seleção e hover unificados para serviços e barbeiros */
-.service-card:hover,
+/* Feedback tátil imediato no iPhone ao pressionar */
+.service-card:active {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .service-card:hover {
+    border-color: #2563eb;
+    background: #172554;
+  }
+}
+
 .service-card.selected,
 .barber-card.selected {
   border-color: #2563eb;
@@ -91,7 +145,7 @@ body {
 }
 
 /* ==========================================================================
-   3. Indicadores Visuais de Seleção (Radio / Checkbox Dots)
+   5. Indicadores Visuais de Seleção (Radio / Checkbox Dots)
    ========================================================================== */
 .selection-dot {
   width: 0.85rem;
@@ -113,7 +167,7 @@ body {
 }
 
 /* ==========================================================================
-   4. Cards de Barbeiros
+   6. Cards de Barbeiros
    ========================================================================== */
 .barber-card {
   padding: 0.9rem;
@@ -122,7 +176,16 @@ body {
   background: #09090b;
   color: #f4f4f5;
   text-align: left;
-  transition: 0.15s;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.barber-card:active:not(:disabled) {
+  transform: scale(0.97);
+  opacity: 0.92;
 }
 
 .barber-card:disabled {
@@ -140,7 +203,7 @@ body {
 }
 
 /* ==========================================================================
-   5. Carrossel de Datas
+   7. Carrossel de Datas
    ========================================================================== */
 .date-carousel {
   display: flex;
@@ -149,6 +212,8 @@ body {
   padding: 0.1rem 0.1rem 0.4rem;
   margin: 0 -0.1rem;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .date-carousel::-webkit-scrollbar {
@@ -167,6 +232,15 @@ body {
   border-radius: 1.25rem;
   color: #d4d4d8;
   background: linear-gradient(#3f3f46, #18181b);
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.date-card:active {
+  transform: scale(0.95);
 }
 
 .date-card span {
@@ -195,7 +269,7 @@ body {
 }
 
 /* ==========================================================================
-   6. Botões de Horários (Time Slots)
+   8. Botões de Horários (Time Slots)
    ========================================================================== */
 .time-button {
   min-height: 2.45rem;
@@ -204,6 +278,16 @@ body {
   background: #09090b;
   color: #e4e4e7;
   font-size: 0.875rem;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.time-button:active:not(:disabled) {
+  transform: scale(0.95);
+  opacity: 0.9;
 }
 
 .time-button:disabled {
@@ -219,7 +303,7 @@ body {
 }
 
 /* ==========================================================================
-   7. Ações e Botões de Navegação (CTA, Voltar, Enviar)
+   9. Ações e Botões de Navegação (CTA, Voltar, Enviar)
    ========================================================================== */
 .action-button,
 .back-button,
@@ -232,6 +316,18 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+}
+
+.action-button:active:not(:disabled),
+.back-button:active:not(:disabled),
+.send-button:active:not(:disabled) {
+  transform: scale(0.96);
+  filter: brightness(0.9);
 }
 
 .action-button {
@@ -259,10 +355,12 @@ body {
 }
 
 /* ==========================================================================
-   8. Chat conversacional (chips, número do cartão, "digitando…", mini-botões)
+   10. Chat conversacional (chips, número do cartão, "digitando…", mini-botões)
    ========================================================================== */
 .chip-row {
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 .chip-row::-webkit-scrollbar {
   display: none;
@@ -278,14 +376,24 @@ body {
   font-size: 0.8rem;
   font-weight: 500;
   white-space: nowrap;
-  transition: 0.15s;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-.chip:hover {
-  border-color: #2563eb;
-  background: #172554;
+
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    border-color: #2563eb;
+    background: #172554;
+  }
 }
+
 .chip:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
+  background: #1e3a8a;
+  border-color: #3b82f6;
 }
 
 .number-badge {
@@ -348,7 +456,17 @@ body {
   color: #e4e4e7;
   font-size: 0.75rem;
   font-weight: 600;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.12s ease;
 }
+
+.mini-button:active {
+  transform: scale(0.95);
+}
+
 .mini-button.primary {
   border-color: #2563eb;
   background: #1d4ed8;

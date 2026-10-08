@@ -2,18 +2,34 @@ import "./globals.css";
 
 export const metadata = {
   title: "JM Barberclub | Agendamento",
-  description: "Agende seu horário no JM Barberclub.",
-  manifest: "/manifest.json", // Adiciona a referência do PWA aqui de forma nativa
+  description: "Chatbot interativo de agendamento online para a barbearia JM Barberclub.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "JM Barber",
+  },
+  formatDetection: {
+    telephone: false, // Previne que o Safari no iOS converta preços e códigos automaticamente em links azuis indesejados
+  },
+  icons: {
+    icon: "/icons/logo-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "JM Barberclub | Agendamento",
+    description: "Chatbot interativo de agendamento online para a barbearia JM Barberclub.",
+  },
 };
 
-// viewportFit + interactiveWidget fazem o layout respeitar a área segura do
-// celular (barra de gestos) e, principalmente, fazem o conteúdo ENCOLHER
-// quando o teclado abre — em vez de o teclado só sobrepor a página. É isso
-// que mantém a caixa de resposta grudada em cima do teclado, feito um chat.
+// viewportFit=cover + interactiveWidget: resizes-content respeitam o Notch e a Dynamic Island no iPhone
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
+  themeColor: "#09090b",
   interactiveWidget: "resizes-content",
 };
 

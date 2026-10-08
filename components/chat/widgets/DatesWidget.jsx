@@ -5,7 +5,7 @@ export default function DatesWidget({ ctx, act }) {
   const today = todayKey(ctx.now);
   return (
     <>
-      <div className="date-carousel">
+      <div className="date-carousel ios-scroll-momentum">
         {selectBookableDays(ctx).map((key) => {
           const [, month, day] = key.split("-").map(Number);
           return (
@@ -13,7 +13,9 @@ export default function DatesWidget({ ctx, act }) {
               key={key}
               type="button"
               onClick={() => act({ type: "PICK_DATE", date: key }, formatDateLong(key))}
-              className={`date-card ${ctx.draft.dateKey === key ? "selected" : ""}`}
+              className={`date-card select-none touch-manipulation transition-transform active:scale-[0.95] ${
+                ctx.draft.dateKey === key ? "selected" : ""
+              }`}
             >
               <span>{key === today ? "HOJE" : WEEKDAYS_SHORT[weekdayOf(key)]}</span>
               <b>{day}</b>

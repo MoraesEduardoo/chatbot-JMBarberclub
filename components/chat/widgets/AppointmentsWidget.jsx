@@ -6,7 +6,7 @@ export default function AppointmentsWidget({ ctx, act }) {
   return (
     <div className="space-y-2.5">
       {groups.map((g) => (
-        <div key={g.key} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3 text-xs space-y-2">
+        <div key={g.key} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3 text-xs space-y-2 select-none">
           <div className="flex items-center justify-between text-zinc-400">
             <span>{formatDateLong(g.dateKey)}</span>
             <span className="font-semibold text-red-400 text-sm">{g.time}</span>
@@ -17,14 +17,18 @@ export default function AppointmentsWidget({ ctx, act }) {
             <button
               type="button"
               onClick={() => act({ type: "PICK_APPOINTMENT", key: g.key, op: "reschedule" }, "Remarcar")}
-              className={`mini-button ${intent === "reschedule" ? "primary" : ""}`}
+              className={`mini-button select-none touch-manipulation active:scale-[0.96] ${
+                intent === "reschedule" ? "primary" : ""
+              }`}
             >
               <CalendarClock size={14} /> Remarcar
             </button>
             <button
               type="button"
               onClick={() => act({ type: "PICK_APPOINTMENT", key: g.key, op: "cancel" }, "Cancelar")}
-              className={`mini-button danger ${intent === "cancel" ? "primary" : ""}`}
+              className={`mini-button danger select-none touch-manipulation active:scale-[0.96] ${
+                intent === "cancel" ? "primary" : ""
+              }`}
             >
               <X size={14} /> Cancelar
             </button>

@@ -1,0 +1,7 @@
+{
+  "name": "JM Barberclub | Agendamento",
+  "description": "Chatbot interativo de agendamento online para a barbearia JM Barberclub.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

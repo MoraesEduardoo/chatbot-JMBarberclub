@@ -7,13 +7,16 @@ export default function BarbersWidget({ ctx, act }) {
     <div className="grid grid-cols-2 gap-3">
       {ctx.catalog.barbers.map((barber) => {
         const unavailable = !eligible.has(barber.id);
+        const isSelected = ctx.draft.barber?.id === barber.id;
         return (
           <button
             key={barber.id}
             type="button"
             disabled={unavailable}
             onClick={() => act({ type: "PICK_BARBER", id: barber.id }, barber.name)}
-            className={`barber-card ${ctx.draft.barber?.id === barber.id ? "selected" : ""}`}
+            className={`barber-card select-none touch-manipulation transition-all active:scale-[0.97] ${
+              isSelected ? "selected" : ""
+            }`}
           >
             <Picture name={barber.name} image={barber.image} className="barber-photo" />
             <b>{barber.name}</b>

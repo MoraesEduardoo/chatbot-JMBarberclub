@@ -1,20 +1,26 @@
 {
+  "id": "/",
   "name": "JM BarberClub",
-  "short_name": "BarberChat",
+  "short_name": "JM Barber",
+  "description": "Chatbot interativo de agendamento online para a barbearia JM Barberclub.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#09090b",
   "theme_color": "#09090b",
   "icons": [
     {
       "src": "/icons/logo-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/logo-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
