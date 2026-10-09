@@ -2,7 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { FALLBACK_SERVICES, FALLBACK_BARBERS, RESTRICTED_SERVICE_NAMES } from "@/core/domain/config";
-import { normalizeStr, resolveHaircutImageUrl } from "@/services/repositories/catalogRepository";
+import { findGalleryPhoto, normalizeStr, resolveHaircutImageUrl } from "@/services/repositories/catalogRepository";
 
 /**
  * Server Action: Obter Catálogo Unificado com Fotos Reais da `haircut_gallery`
@@ -50,16 +50,8 @@ export async function getCatalogAction() {
     const processedServices = [];
 
     for (const s of rawServices) {
-      const sNorm = normalizeStr(s.name);
-      const sId = String(s.id);
-
-      // Procura foto correspondente na haircut_gallery
-      const matched = galleryItems.find((g) => {
-        if (g.service_id && String(g.service_id) === sId) return true;
-        const gTitle = normalizeStr(g.title);
-        const gCat = normalizeStr(g.category);
-        return gTitle === sNorm || gCat === sNorm || (gTitle && sNorm.includes(gTitle)) || (gTitle && gTitle.includes(sNorm));
-      });
+      // Procura foto correspondente na haircut_gallery com algoritmo unificado
+      const matched = findGalleryPhoto(s, galleryItems);
 
       let imageUrl = "";
       if (matched) {

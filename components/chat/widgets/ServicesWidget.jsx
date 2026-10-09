@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Scissors } from "lucide-react";
 import { formatPrice } from "@/core/domain/time";
 
 /**
@@ -8,25 +8,35 @@ import { formatPrice } from "@/core/domain/time";
  * 2. loading="lazy": economiza consumo de banda e memória em dispositivos móveis.
  * 3. referrerPolicy="no-referrer": impede bloqueios de CORS/Referer ao carregar imagens do Supabase Storage.
  * 4. crossOrigin="anonymous": permite acesso limpo a ativos de CDN externos.
- * 5. Opacidade aprimorada (opacity-75 sm:opacity-80) combinada com gradiente escuro:
- *    assegura que a foto real do corte seja nítida e visível, mantendo o texto em branco 100% legível.
- * 6. Fallback elegante com ícone discreto caso o link da imagem esteja temporariamente inacessível.
+ * 5. Tratamento de Erro 400 (Bad Request) / 404: Se o link da foto estiver corrompido, vazio
+ *    ou o Supabase Storage rejeitar o caminho, o evento onError ativa imediatamente um
+ *    fallback padrão (placeholder) estilizado com a identidade visual da barbearia,
+ *    garantindo que o card nunca quebre visualmente nem exiba ícones quebrados do navegador.
  */
 export function Picture({ name, image, className = "" }) {
   const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // Reseta estado de erro se a propriedade de imagem mudar dinamicamente
   useEffect(() => {
     setHasError(false);
+    setIsLoaded(false);
   }, [image]);
 
-  if (!image || hasError) {
+  const cleanImage = typeof image === "string" ? image.trim() : "";
+
+  if (!cleanImage || hasError) {
     return (
       <div
-        className={`absolute inset-0 grid place-items-center bg-zinc-900/90 text-zinc-700 z-0 select-none ${className}`}
+        className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800/90 via-zinc-900/95 to-zinc-950 text-zinc-500 z-0 select-none ${className}`}
         aria-hidden="true"
       >
-        <ImageIcon size={26} className="opacity-40" />
+        <div className="w-10 h-10 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center mb-1.5 shadow-inner">
+          <Scissors size={18} className="text-zinc-500 rotate-45" />
+        </div>
+        <span className="text-[10px] tracking-widest uppercase font-semibold text-zinc-500/90">
+          JM Barber
+        </span>
       </div>
     );
   }
@@ -34,14 +44,20 @@ export function Picture({ name, image, className = "" }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={image}
+      src={cleanImage}
       alt={name}
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"
       crossOrigin="anonymous"
-      onError={() => setHasError(true)}
-      className={`absolute inset-0 w-full h-full object-cover opacity-75 sm:opacity-80 z-0 transition-opacity duration-300 select-none ${className}`}
+      onLoad={() => setIsLoaded(true)}
+      onError={() => {
+        // Ativa o fallback resiliente instantaneamente para evitar quebra de UI
+        setHasError(true);
+      }}
+      className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-300 select-none ${
+        isLoaded ? "opacity-75 sm:opacity-80" : "opacity-0"
+      } ${className}`}
     />
   );
 }

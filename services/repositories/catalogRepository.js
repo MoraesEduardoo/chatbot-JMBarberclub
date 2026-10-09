@@ -42,59 +42,160 @@ function extractTokens(str) {
     .filter((tok) => tok.length >= 3 && !stopWords.has(tok));
 }
 
+export const DEFAULT_HAIRCUT_STORAGE_BUCKET = "haircut-gallery";
+
+export const KNOWN_STORAGE_BUCKETS = [
+  "haircut-gallery",
+  "haircut_gallery",
+  "haircut-photos",
+  "haircuts",
+  "gallery",
+  "cortes",
+  "services",
+];
+
 /**
- * Constrói a URL pública definitiva da foto do corte armazenada no Supabase Storage:
- * Utiliza o método nativo `supabase.storage.from(bucket).getPublicUrl(...)`.
+ * Constrói a URL pública definitiva da foto do corte armazenada no Supabase Storage.
+ * Projetada especificamente para PREVENIR ERRO 400 (Bad Request):
+ * 
+ * 1. URLs completas (http:// ou https://):
+ *    - Se for do Supabase Storage, sanitiza barras duplas (//) no pathname.
+ *    - Remove repetições do bucket geradas acidentalmente (ex: /haircut-gallery/haircut-gallery/).
+ * 
+ * 2. Caminhos relativos de Storage (/storage/v1/object/public/...):
+ *    - Limpa barras duplas e duplicações de bucket.
+ *    - Concatena com NEXT_PUBLIC_SUPABASE_URL.
+ * 
+ * 3. Caminhos relativos (ex: "corte.webp", "/haircut-gallery/corte.webp", "haircut-gallery//corte.webp"):
+ *    - Remove barras no início e fim.
+ *    - Remove barras duplas internas (/+/ -> /).
+ *    - Identifica e remove o prefixo do bucket do caminho do objeto (para evitar duplicar o bucket).
+ *    - Utiliza o bucket oficial "haircut-gallery".
+ *    - Chama `supabase.storage.from('haircut-gallery').getPublicUrl(cleanPath)` passando o caminho sem barra inicial.
+ *    - Sanitiza a URL final gerada.
+ * 
+ * 4. Fallback:
+ *    - Se o caminho for nulo, vazio ou inválido, retorna string vazia para que o componente
+ *      exiba o placeholder elegante sem quebrar a interface nem poluir o console.
  */
 export function resolveHaircutImageUrl(supabase, rawPath) {
-  if (!rawPath || typeof rawPath !== "string") return "";
-  const path = rawPath.trim();
+  if (!rawPath) return "";
+
+  let path = typeof rawPath === "string" ? rawPath.trim() : "";
   if (!path) return "";
+
+  // Suporte defensivo caso o campo tenha vindo serializado como JSON (ex: '{"path":"..."}')
+  if (path.startsWith("{") || path.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(path);
+      path = (parsed.path || parsed.url || parsed.image_path || parsed.image || parsed[0] || "").trim();
+      if (!path) return "";
+    } catch {
+      // continua com string original
+    }
+  }
 
   // 1. Já é URL pública absoluta (HTTP / HTTPS)
   if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
+    try {
+      const urlObj = new URL(path);
+      // Sanitiza o pathname se for endpoint do Supabase Storage
+      if (urlObj.pathname.includes("/storage/v1/object/public/")) {
+        let cleanPathname = urlObj.pathname.replace(/\/{2,}/g, "/");
+        // Remove repetições do bucket (ex: /haircut-gallery/haircut-gallery/ -> /haircut-gallery/)
+        cleanPathname = cleanPathname.replace(
+          /\/storage\/v1\/object\/public\/([^/]+)\/\1\//g,
+          "/storage/v1/object/public/$1/"
+        );
+        urlObj.pathname = cleanPathname;
+        return urlObj.toString();
+      }
+      return path;
+    } catch {
+      // Se URL parser falhar em URLs incomuns, limpa barras duplas na porção pós-protocolo
+      const [proto, rest] = path.split("://");
+      const cleanRest = rest ? rest.replace(/\/{2,}/g, "/") : "";
+      return `${proto}://${cleanRest}`;
+    }
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "") || "";
 
-  // 2. Caminho relativo padrão da API de Storage do Supabase
-  if (path.startsWith("/storage/v1/object/public/")) {
-    return supabaseUrl ? `${supabaseUrl}${path}` : path;
-  }
-  if (path.startsWith("storage/v1/object/public/")) {
-    return supabaseUrl ? `${supabaseUrl}/${path}` : `/${path}`;
+  // 2. Caminho relativo da API de Storage do Supabase (/storage/v1/object/public/...)
+  const storageApiPrefix = "storage/v1/object/public/";
+  const noLeadSlash = path.replace(/^\/+/, "");
+
+  if (noLeadSlash.startsWith(storageApiPrefix)) {
+    const afterPrefix = noLeadSlash.substring(storageApiPrefix.length).replace(/^\/+/, "");
+    let cleanAfter = afterPrefix.replace(/\/{2,}/g, "/");
+    cleanAfter = cleanAfter.replace(/^([^/]+)\/\1\//, "$1/");
+
+    if (supabaseUrl) {
+      return `${supabaseUrl}/${storageApiPrefix}${cleanAfter}`;
+    }
+    return `/${storageApiPrefix}${cleanAfter}`;
   }
 
-  // 3. Verifica se o caminho já inclui o nome de um bucket conhecido
-  const knownBuckets = [
-    "haircut-photos",
-    "haircut_gallery",
-    "haircuts",
-    "gallery",
-    "haircut-gallery",
-    "cortes",
-    "services",
-  ];
+  // 3. Caminho relativo de arquivo dentro do bucket (ex: "corte.webp", "/haircut-gallery/corte.webp")
+  // Limpa barras iniciais, finais e colapsa barras duplas (// -> /)
+  let cleanRelPath = path.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\/{2,}/g, "/").trim();
+  if (!cleanRelPath) return "";
 
-  for (const bucket of knownBuckets) {
-    if (path.startsWith(`${bucket}/`)) {
-      const cleanPath = path.substring(bucket.length + 1).replace(/^\/+/, "");
-      const { data } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
-      if (data?.publicUrl) return data.publicUrl;
+  // Detecta se o caminho já veio prefixado com o nome do bucket para evitar bucket duplicado
+  let targetBucket = DEFAULT_HAIRCUT_STORAGE_BUCKET;
+
+  for (const bucket of KNOWN_STORAGE_BUCKETS) {
+    const prefix = `${bucket.toLowerCase()}/`;
+    if (cleanRelPath.toLowerCase().startsWith(prefix)) {
+      targetBucket = bucket;
+      cleanRelPath = cleanRelPath.substring(prefix.length).replace(/^\/+/, "");
+      // Remove repetições adicionais acidentais (ex: haircut-gallery/haircut-gallery/...)
+      while (cleanRelPath.toLowerCase().startsWith(prefix)) {
+        cleanRelPath = cleanRelPath.substring(prefix.length).replace(/^\/+/, "");
+      }
+      break;
     }
   }
 
-  // 4. Caso padrão: arquivo no bucket principal de fotos de corte ("haircut-photos")
-  const cleanPath = path.replace(/^\/+/, "");
-  const { data } = supabase.storage.from("haircut-photos").getPublicUrl(cleanPath);
-  return data?.publicUrl || "";
+  // Remove qualquer barra residual no início
+  cleanRelPath = cleanRelPath.replace(/^\/+/, "").trim();
+  if (!cleanRelPath) return "";
+
+  // 4. Utiliza o método oficial supabase.storage.from(targetBucket).getPublicUrl(cleanRelPath)
+  if (supabase?.storage?.from) {
+    try {
+      const { data } = supabase.storage.from(targetBucket).getPublicUrl(cleanRelPath);
+      if (data?.publicUrl) {
+        let finalUrl = data.publicUrl;
+        try {
+          const urlObj = new URL(finalUrl);
+          urlObj.pathname = urlObj.pathname.replace(/\/{2,}/g, "/");
+          urlObj.pathname = urlObj.pathname.replace(
+            /\/storage\/v1\/object\/public\/([^/]+)\/\1\//g,
+            "/storage/v1/object/public/$1/"
+          );
+          return urlObj.toString();
+        } catch {
+          return finalUrl;
+        }
+      }
+    } catch (err) {
+      console.warn("[chat] Erro ao chamar getPublicUrl no Supabase Storage:", err);
+    }
+  }
+
+  // 5. Fallback com construção direta da URL do Supabase Storage
+  if (supabaseUrl) {
+    return `${supabaseUrl}/storage/v1/object/public/${targetBucket}/${cleanRelPath}`;
+  }
+
+  return "";
 }
 
 /**
  * Encontra a foto ideal na `haircut_gallery` para um dado serviço.
  */
-function findGalleryPhoto(service, galleryList) {
+export function findGalleryPhoto(service, galleryList) {
   if (!galleryList?.length) return null;
 
   const serviceNameNorm = normalizeStr(service.name);
