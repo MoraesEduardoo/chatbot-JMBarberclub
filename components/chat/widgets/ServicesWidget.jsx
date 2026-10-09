@@ -3,10 +3,14 @@ import { ChevronRight, Image as ImageIcon } from "lucide-react";
 import { formatPrice } from "@/core/domain/time";
 
 /**
- * Componente de imagem blindado contra falhas do Safari WebKit no iOS:
- * 1. decoding="async" impede travamentos na thread principal de renderização.
- * 2. loading="lazy" economiza consumo de memória no iPhone.
- * 3. Fallback visual elegante quando o link do Supabase falha ou está indisponível.
+ * Componente de imagem blindado para renderizar as fotos reais da `haircut_gallery`:
+ * 1. decoding="async": impede travamentos na thread principal de renderização no Safari/WebKit.
+ * 2. loading="lazy": economiza consumo de banda e memória em dispositivos móveis.
+ * 3. referrerPolicy="no-referrer": impede bloqueios de CORS/Referer ao carregar imagens do Supabase Storage.
+ * 4. crossOrigin="anonymous": permite acesso limpo a ativos de CDN externos.
+ * 5. Opacidade aprimorada (opacity-75 sm:opacity-80) combinada com gradiente escuro:
+ *    assegura que a foto real do corte seja nítida e visível, mantendo o texto em branco 100% legível.
+ * 6. Fallback elegante com ícone discreto caso o link da imagem esteja temporariamente inacessível.
  */
 export function Picture({ name, image, className = "" }) {
   const [hasError, setHasError] = useState(false);
@@ -19,7 +23,7 @@ export function Picture({ name, image, className = "" }) {
   if (!image || hasError) {
     return (
       <div
-        className={`absolute inset-0 grid place-items-center bg-zinc-900 text-zinc-700 z-0 select-none ${className}`}
+        className={`absolute inset-0 grid place-items-center bg-zinc-900/90 text-zinc-700 z-0 select-none ${className}`}
         aria-hidden="true"
       >
         <ImageIcon size={26} className="opacity-40" />
@@ -34,8 +38,10 @@ export function Picture({ name, image, className = "" }) {
       alt={name}
       loading="lazy"
       decoding="async"
+      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
       onError={() => setHasError(true)}
-      className={`absolute inset-0 w-full h-full object-cover opacity-50 z-0 transition-opacity duration-200 select-none ${className}`}
+      className={`absolute inset-0 w-full h-full object-cover opacity-75 sm:opacity-80 z-0 transition-opacity duration-300 select-none ${className}`}
     />
   );
 }
