@@ -22,10 +22,10 @@ export default function QuickReplies({ ctx, act, isInputHidden = false }) {
 
   return (
     <div
-      className={`shrink-0 flex gap-2 overflow-x-auto px-3 chip-row ios-scroll-momentum select-none transition-all ${
+      className={`shrink-0 flex gap-2.5 overflow-x-auto px-3.5 chip-row ios-scroll-momentum select-none transition-all ${
         isInputHidden
-          ? "pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] border-t border-zinc-800/80 bg-zinc-950/95 backdrop-blur-md shadow-lg"
-          : "pt-2 pb-1.5"
+          ? "pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom,0px))] border-t border-zinc-800/80 bg-zinc-950/95 backdrop-blur-md shadow-lg"
+          : "pt-2 pb-2"
       }`}
       style={{ WebkitOverflowScrolling: "touch" }}
     >

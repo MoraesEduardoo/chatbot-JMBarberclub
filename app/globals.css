@@ -110,15 +110,15 @@ select {
 
 @media (hover: hover) and (pointer: fine) {
   .service-card:hover {
-    border-color: #2563eb;
-    background: #172554;
+    border-color: #dc2626;
+    background: rgba(220, 38, 38, 0.12);
   }
 }
 
 .service-card.selected,
 .barber-card.selected {
-  border-color: #2563eb;
-  background: #172554;
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.16);
 }
 
 .service-photo {
@@ -161,9 +161,9 @@ select {
 }
 
 .selected .selection-dot {
-  border-color: #60a5fa;
-  background: #60a5fa;
-  box-shadow: inset 0 0 0 2px #172554;
+  border-color: #ef4444;
+  background: #ef4444;
+  box-shadow: inset 0 0 0 2px #450a0a;
 }
 
 /* ==========================================================================
@@ -297,8 +297,8 @@ select {
 }
 
 .time-button.selected {
-  border-color: #2563eb;
-  background: #1d4ed8;
+  border-color: #dc2626;
+  background: #dc2626;
   color: white;
 }
 
@@ -333,7 +333,7 @@ select {
 .action-button {
   width: 100%;
   border: 0;
-  background: #2563eb;
+  background: #dc2626;
   color: white;
 }
 
@@ -350,7 +350,7 @@ select {
 .send-button {
   width: 3rem;
   border: 0;
-  background: #2563eb;
+  background: #dc2626;
   color: white;
 }
 
@@ -368,15 +368,19 @@ select {
 
 .chip {
   flex: 0 0 auto;
-  padding: 0.5rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  min-height: 2.5rem;
+  border-radius: 1rem;
   border: 1px solid #3f3f46;
   background: #18181b;
-  color: #e4e4e7;
-  font-size: 0.8rem;
-  font-weight: 500;
+  color: #f4f4f5;
+  font-size: 0.8125rem;
+  font-weight: 600;
   white-space: nowrap;
-  transition: transform 0.12s ease, border-color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
   touch-action: manipulation;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -385,15 +389,15 @@ select {
 
 @media (hover: hover) and (pointer: fine) {
   .chip:hover {
-    border-color: #2563eb;
-    background: #172554;
+    border-color: #dc2626;
+    background: #27272a;
   }
 }
 
 .chip:active {
-  transform: scale(0.94);
-  background: #1e3a8a;
-  border-color: #3b82f6;
+  transform: scale(0.95);
+  background: #27272a;
+  border-color: #ef4444;
 }
 
 .number-badge {
@@ -468,8 +472,8 @@ select {
 }
 
 .mini-button.primary {
-  border-color: #2563eb;
-  background: #1d4ed8;
+  border-color: #dc2626;
+  background: #dc2626;
   color: #fff;
 }
 .mini-button.danger.primary {

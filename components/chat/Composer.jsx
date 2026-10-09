@@ -76,14 +76,14 @@ export default function Composer({ state, onSend, isKeyboardOpen, onFocusInput }
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submit()}
           placeholder={disabled ? "Aguarde…" : PLACEHOLDERS[state] ?? "Digite aqui…"}
           /* NOTA CRÍTICA IOS: font-size 16px (text-[16px]) obrigatório para impedir auto-zoom no Safari */
-          className="flex-1 min-w-0 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] leading-normal outline-none focus:border-blue-500 text-white placeholder:text-zinc-500 disabled:opacity-60 transition-colors shadow-inner"
+          className="flex-1 min-w-0 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] leading-normal outline-none focus:border-red-500 text-white placeholder:text-zinc-500 disabled:opacity-60 transition-colors shadow-inner"
         />
         <button
           type="button"
           onClick={submit}
           disabled={disabled || !value.trim()}
           aria-label="Enviar"
-          className="send-button shrink-0 disabled:opacity-40 active:scale-90 active:bg-blue-700 transition-transform select-none touch-manipulation"
+          className="send-button shrink-0 disabled:opacity-40 active:scale-90 active:bg-red-700 transition-transform select-none touch-manipulation"
         >
           <Send size={17} />
         </button>

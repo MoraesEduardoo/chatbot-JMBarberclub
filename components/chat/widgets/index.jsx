@@ -30,7 +30,7 @@ export default function Widget({ message, ctx, act }) {
     case "barbers": return <BarbersWidget ctx={ctx} act={act} />;
     case "dates": return <DatesWidget ctx={ctx} act={act} />;
     case "times": return <TimesWidget ctx={ctx} act={act} />;
-    case "summary": return <SummaryWidget ctx={ctx} />;
+    case "summary": return <SummaryWidget ctx={ctx} act={act} />;
     case "appointments": return <AppointmentsWidget ctx={ctx} act={act} />;
     case "receipt": return <ReceiptWidget summary={widget.summary} client={ctx.client} />;
     case "catalogView": return <CatalogWidget services={widget.services} />;
