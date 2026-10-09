@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Calendar, Download, Scissors, Share, X } from "lucide-react";
 import { SHOP } from "@/core/domain/config";
+import { S } from "@/core/conversation/states";
 import { useChatbot } from "@/hooks/useChatbot";
 import { useIOSViewport } from "@/hooks/useIOSViewport";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
@@ -91,18 +92,26 @@ export default function ChatbotShell() {
       {/* Lista de mensagens com scroll dinâmico ao abrir teclado */}
       <MessageList ctx={ctx} act={act} isKeyboardOpen={isKeyboardOpen} />
 
-      {/* Chips de resposta rápida */}
-      <QuickReplies ctx={ctx} act={act} />
+      {/* Determina se o passo atual exige digitação de texto (nome ou telefone) */}
+      {(() => {
+        const isTextInputStep = ctx.state === S.ASK_NAME || ctx.state === S.ASK_PHONE;
+        return (
+          <>
+            {/* Chips de resposta rápida com barra inferior dinâmica quando o input está oculto */}
+            <QuickReplies ctx={ctx} act={act} isInputHidden={!isTextInputStep} />
 
-      {/* Input de mensagem adaptado ao teclado e safe-area */}
-      <Composer
-        state={ctx.state}
-        onSend={sendText}
-        isKeyboardOpen={isKeyboardOpen}
-        onFocusInput={() => {
-          // Garante alinhamento ao focar
-        }}
-      />
+            {/* Input de mensagem — só renderiza estritamente nos passos de texto */}
+            <Composer
+              state={ctx.state}
+              onSend={sendText}
+              isKeyboardOpen={isKeyboardOpen}
+              onFocusInput={() => {
+                // Garante alinhamento ao focar
+              }}
+            />
+          </>
+        );
+      })()}
 
       {/* Modal Guia de Instalação Passo a Passo (iOS / Fallback) */}
       {showInstallGuide && (

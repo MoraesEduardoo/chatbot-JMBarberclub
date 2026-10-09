@@ -7,27 +7,35 @@ import { S } from "@/core/conversation/states";
 const PLACEHOLDERS = {
   [S.ASK_NAME]: "Digite seu nome",
   [S.ASK_PHONE]: "(00) 00000-0000",
-  [S.CHOOSE_SERVICES]: "Ex.: degradê e sobrancelha",
-  [S.CHOOSE_BARBER]: "Ex.: Matheus",
-  [S.CHOOSE_DATE]: "Ex.: amanhã, sexta, 15/10",
-  [S.CHOOSE_TIME]: "Ex.: 14:30",
-  [S.CONFIRM]: "Digite \"sim\" para confirmar",
-  [S.CONFIRM_CANCEL]: "Digite \"sim\" ou \"não\"",
 };
 
-/** Caixa de texto livre — adaptada para a ergonomia do teclado e safe-area do iOS */
+/**
+ * Caixa de texto livre inteligente:
+ * - Oculta-se completamente por padrão sempre que o passo atual depender exclusivamente de botões.
+ * - Renderiza-se estritamente nos passos de captura de dados textuais: ASK_NAME e ASK_PHONE.
+ * - Mantém as otimizações de iOS (font-size 16px anti-zoom e gestão de safe-area com teclado).
+ */
 export default function Composer({ state, onSend, isKeyboardOpen, onFocusInput }) {
   const [value, setValue] = useState("");
   const inputRef = useRef(null);
-  const disabled = state === S.BOOT || state === S.WORKING;
-  const needsData = state === S.ASK_NAME || state === S.ASK_PHONE;
 
-  // No iOS Safari, focar programmaticamente só deve ocorrer quando o fluxo exige explicitamente digitação
+  // Lógica condicional: a caixa de texto livre só deve estar ativa e visível
+  // estritamente quando o bot estiver solicitando o nome ou o telefone do cliente.
+  const isTextInputStep = state === S.ASK_NAME || state === S.ASK_PHONE;
+
+  // Foco automático exclusivo nos passos de preenchimento textual
   useEffect(() => {
-    if (needsData) {
+    if (isTextInputStep) {
       inputRef.current?.focus();
     }
-  }, [needsData, state]);
+  }, [isTextInputStep, state]);
+
+  // Se o passo atual depender apenas de botões/cartões, o input fica 100% oculto
+  if (!isTextInputStep) {
+    return null;
+  }
+
+  const disabled = state === S.BOOT || state === S.WORKING;
 
   const submit = () => {
     const text = value.trim();
@@ -44,9 +52,9 @@ export default function Composer({ state, onSend, isKeyboardOpen, onFocusInput }
 
   return (
     <footer
-      className={`shrink-0 border-t border-zinc-800 bg-zinc-950 p-3 pt-2.5 transition-all duration-150 ${
+      className={`shrink-0 border-t border-zinc-800 bg-zinc-950 p-3 pt-2.5 transition-all duration-150 animate-fadeIn ${
         isKeyboardOpen
-          ? "pb-3" // Teclado aberto: remove o espaço extra da barra de gestos que já foi absorvida pelo teclado
+          ? "pb-3" // Teclado aberto: remove folga da barra de gestos que já foi absorvida
           : "pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]" // Teclado fechado: respeita o Home Indicator do iPhone
       }`}
     >
@@ -55,9 +63,9 @@ export default function Composer({ state, onSend, isKeyboardOpen, onFocusInput }
           ref={inputRef}
           value={value}
           disabled={disabled}
-          maxLength={200}
+          maxLength={state === S.ASK_PHONE ? 20 : 60}
           inputMode={state === S.ASK_PHONE ? "tel" : "text"}
-          autoComplete={state === S.ASK_PHONE ? "tel" : state === S.ASK_NAME ? "name" : "off"}
+          autoComplete={state === S.ASK_PHONE ? "tel" : "name"}
           autoCapitalize={state === S.ASK_NAME ? "words" : "sentences"}
           autoCorrect="off"
           spellCheck="false"
@@ -66,8 +74,8 @@ export default function Composer({ state, onSend, isKeyboardOpen, onFocusInput }
           onFocus={handleFocus}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submit()}
-          placeholder={disabled ? "Aguarde…" : PLACEHOLDERS[state] ?? "Escreva sua mensagem…"}
-          /* NOTA CRÍTICA IOS: font-size DEVE ser de no mínimo 16px (text-[16px]) para impedir o auto-zoom do Safari */
+          placeholder={disabled ? "Aguarde…" : PLACEHOLDERS[state] ?? "Digite aqui…"}
+          /* NOTA CRÍTICA IOS: font-size 16px (text-[16px]) obrigatório para impedir auto-zoom no Safari */
           className="flex-1 min-w-0 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] leading-normal outline-none focus:border-blue-500 text-white placeholder:text-zinc-500 disabled:opacity-60 transition-colors shadow-inner"
         />
         <button
