@@ -13,24 +13,24 @@ export default function AppointmentsWidget({ ctx, act }) {
           </div>
           <p className="font-medium text-white text-sm">{g.serviceNames.join(" + ")}</p>
           <p className="text-zinc-400">Barbeiro: {g.barberName}</p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="grid grid-cols-2 gap-2.5 pt-1.5">
             <button
               type="button"
               onClick={() => act({ type: "PICK_APPOINTMENT", key: g.key, op: "reschedule" }, "Remarcar")}
-              className={`mini-button select-none touch-manipulation active:scale-[0.96] ${
-                intent === "reschedule" ? "primary" : ""
+              className={`mini-button select-none touch-manipulation active:scale-[0.96] cursor-pointer shadow-sm ${
+                intent === "reschedule" ? "primary shadow-red-500/25" : ""
               }`}
             >
-              <CalendarClock size={14} /> Remarcar
+              <CalendarClock size={16} /> Remarcar
             </button>
             <button
               type="button"
               onClick={() => act({ type: "PICK_APPOINTMENT", key: g.key, op: "cancel" }, "Cancelar")}
-              className={`mini-button danger select-none touch-manipulation active:scale-[0.96] ${
-                intent === "cancel" ? "primary" : ""
+              className={`mini-button danger select-none touch-manipulation active:scale-[0.96] cursor-pointer shadow-sm ${
+                intent === "cancel" ? "primary shadow-red-500/25" : ""
               }`}
             >
-              <X size={14} /> Cancelar
+              <X size={16} /> Cancelar
             </button>
           </div>
         </div>

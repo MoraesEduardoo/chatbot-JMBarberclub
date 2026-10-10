@@ -22,15 +22,15 @@ export default function TimesWidget({ ctx, act }) {
       <p className="mb-3 flex items-center gap-1.5 text-xs text-zinc-400">
         <Clock3 size={15} /> Toque em um horário livre
       </p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2.5 my-2">
         {slots.map((slot) => (
           <button
             key={slot.time}
             type="button"
             disabled={!slot.available}
             onClick={() => act({ type: "PICK_TIME", time: slot.time }, slot.time)}
-            className={`time-button select-none touch-manipulation transition-transform ${
-              ctx.draft.time === slot.time ? "selected" : ""
+            className={`time-button select-none touch-manipulation transition-all cursor-pointer shadow-sm ${
+              ctx.draft.time === slot.time ? "selected ring-2 ring-red-500" : ""
             }`}
           >
             {slot.reason === "booked" ? "Ocupado" : slot.time}

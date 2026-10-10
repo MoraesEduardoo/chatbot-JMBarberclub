@@ -84,7 +84,7 @@ export default function ServicesWidget({ ctx, act }) {
         - overscroll-contain: impede que o scroll horizontal acione o efeito elástico vertical da tela
       */}
       <div
-        className="flex gap-2.5 overflow-x-auto pb-2.5 pt-1 px-0.5 scrollbar-none snap-x snap-mandatory overscroll-x-contain ios-scroll-momentum"
+        className="flex gap-3 overflow-x-auto pb-3 pt-1 px-1 scrollbar-none snap-x snap-mandatory overscroll-x-contain ios-scroll-momentum"
         style={{
           WebkitOverflowScrolling: "touch",
           scrollbarWidth: "none",
@@ -101,14 +101,14 @@ export default function ServicesWidget({ ctx, act }) {
               onClick={() => act({ type: "TOGGLE_SERVICE", id: service.id })}
               /* 
                 Estrutura do Card no Carrossel:
-                - flex-none / w-[9.5rem] (152px): largura fixa ideal para carrossel mobile sem esticar
-                - h-40 (160px): altura compacta verticalmente que não polui o chat
+                - flex-none / w-[10.5rem] (168px): largura expandida e ergonômica para toque com o polegar
+                - h-44 (176px): altura ampliada garantindo legibilidade e presença visual sem poluição
                 - snap-start: cada cartão alinha magneticamente ao início ao soltar o dedo
                 - touch-manipulation & active:scale-[0.97]: feedback tátil instantâneo no iPhone
               */
-              className={`relative flex-none w-[9.5rem] sm:w-[10.25rem] h-40 overflow-hidden rounded-2xl p-3 flex flex-col justify-between text-left border transition-all snap-start select-none touch-manipulation active:scale-[0.97] ${
+              className={`relative flex-none w-[10.5rem] sm:w-[11.5rem] h-44 overflow-hidden rounded-2xl p-3.5 flex flex-col justify-between text-left border transition-all snap-start select-none touch-manipulation active:scale-[0.97] cursor-pointer shadow-md ${
                 isSelected
-                  ? "border-red-500 bg-zinc-900/90 shadow-lg shadow-red-500/20 ring-1 ring-red-500"
+                  ? "border-red-500 bg-zinc-900/90 shadow-xl shadow-red-500/25 ring-2 ring-red-500"
                   : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 active:bg-zinc-800/80"
               }`}
             >
@@ -124,22 +124,24 @@ export default function ServicesWidget({ ctx, act }) {
                   {index + 1}
                 </span>
                 <span
-                  className={`w-4 h-4 rounded-full border grid place-items-center transition-colors ${
-                    isSelected ? "border-red-500 bg-red-500 text-white shadow-sm shadow-red-500" : "border-zinc-600 bg-black/40"
+                  className={`w-5 h-5 rounded-full border grid place-items-center transition-colors ${
+                    isSelected ? "border-red-500 bg-red-500 text-white shadow-sm shadow-red-500" : "border-zinc-600 bg-black/50"
                   }`}
                 >
-                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
                 </span>
               </div>
 
               {/* Rodapé do card (Nome, Preço e Duração estimada) */}
               <div className="relative z-10 mt-auto pointer-events-none">
-                <b className="block text-sm font-semibold text-white drop-shadow-md truncate leading-tight">
+                <b className="block text-sm sm:text-base font-bold text-white drop-shadow-md truncate leading-tight">
                   {service.name}
                 </b>
-                <small className="text-xs text-zinc-300 drop-shadow-md mt-0.5 block font-medium">
+                <small className="text-xs sm:text-sm text-zinc-300 drop-shadow-md mt-1 block font-semibold text-emerald-400">
                   {formatPrice(service.price)}
-                  {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                  {service.durationMinutes ? (
+                    <span className="text-zinc-400 font-normal"> · {service.durationMinutes} min</span>
+                  ) : ""}
                 </small>
               </div>
             </button>
