@@ -48,13 +48,15 @@ export async function getCatalogAction() {
     const galleryItems = (galleryRes.data || []).filter((g) => g.is_active !== false);
     const rawServices = servicesRes.data || [];
     const processedServices = [];
+    const matchedGalleryIds = new Set();
 
     for (const s of rawServices) {
-      // Procura foto correspondente na haircut_gallery com algoritmo unificado
-      const matched = findGalleryPhoto(s, galleryItems);
+      // Procura foto correspondente na haircut_gallery com algoritmo de mapeamento exclusivo
+      const matched = findGalleryPhoto(s, galleryItems, matchedGalleryIds);
 
       let imageUrl = "";
       if (matched) {
+        matchedGalleryIds.add(matched.id);
         const rawImg = matched.image_path || matched.image_url || matched.url || matched.photo_url || matched.image;
         imageUrl = resolveHaircutImageUrl(supabase, rawImg);
       }

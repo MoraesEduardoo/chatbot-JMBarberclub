@@ -1,6 +1,42 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveHaircutImageUrl } from "../../services/repositories/catalogRepository.js";
+import { findGalleryPhoto, resolveHaircutImageUrl } from "../../services/repositories/catalogRepository.js";
+
+test("findGalleryPhoto: mapeamento unívoco e estrito de fotos da galeria", async (t) => {
+  const galleryItems = [
+    { id: "img-1", title: "Degradê", category: "Cabelo", image_path: "haircut-gallery/degrade.webp" },
+    { id: "img-2", title: "Degradê + Sobrancelha", category: "Combo", image_path: "haircut-gallery/combo-sobrancelha.webp" },
+    { id: "img-3", title: "Barboterapia", category: "Barba", image_path: "haircut-gallery/barba.webp" },
+  ];
+
+  await t.test("associa 'Degradê' com sua foto específica", () => {
+    const photo = findGalleryPhoto({ id: "degrade", name: "Degradê" }, galleryItems);
+    assert.ok(photo);
+    assert.equal(photo.id, "img-1");
+  });
+
+  await t.test("associa 'Degradê + Sobrancelha' com sua foto própria e NÃO duplica foto do 'Degradê'", () => {
+    const usedIds = new Set(["img-1"]);
+    const photo = findGalleryPhoto({ id: "degrade-sobrancelha", name: "Degradê + Sobrancelha" }, galleryItems, usedIds);
+    assert.ok(photo);
+    assert.equal(photo.id, "img-2");
+  });
+
+  await t.test("retorna null (placeholder individual) se o serviço não tiver foto cadastrada, sem roubar foto de outro corte", () => {
+    const usedIds = new Set(["img-1", "img-2", "img-3"]);
+    const photo = findGalleryPhoto({ id: "social-sobrancelha", name: "Social + Sobrancelha" }, galleryItems, usedIds);
+    assert.equal(photo, null);
+  });
+
+  await t.test("serviço sem foto não assume foto de título parcial sem todos os tokens", () => {
+    const minimalGallery = [
+      { id: "img-only-degrade", title: "Degradê", category: "Cabelo", image_path: "degrade.webp" },
+    ];
+    // "Degradê + Sobrancelha" não deve pegar "Degradê" simples
+    const photo = findGalleryPhoto({ id: "combo", name: "Degradê + Sobrancelha" }, minimalGallery, new Set());
+    assert.equal(photo, null);
+  });
+});
 
 test("resolveHaircutImageUrl: sanitiza caminhos e evita erro 400 Bad Request no Supabase Storage", async (t) => {
   const fakeSupabase = {

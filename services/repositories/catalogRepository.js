@@ -193,48 +193,63 @@ export function resolveHaircutImageUrl(supabase, rawPath) {
 }
 
 /**
- * Encontra a foto ideal na `haircut_gallery` para um dado serviço.
+ * Encontra a foto ideal e exclusiva na `haircut_gallery` para um dado serviço.
+ * Regras estritas de correspondência para evitar fotos repetidas entre serviços diferentes:
+ * 1. Correspondência direta por ID (g.service_id === service.id).
+ * 2. Correspondência exata por Título normalizado (g.title === service.name).
+ * 3. Correspondência exata por Categoria normalizada (g.category === service.name).
+ * 4. Correspondência estrita de títulos compostos (ex.: "Degradê + Sobrancelha" só deve casar com fotos
+ *    que contenham especificamente ambos os termos, sem roubar a foto simples de "Degradê").
+ * 
+ * Se não houver correspondência exata e segura, retorna null para ativar o fallback limpo e elegante
+ * individual em vez de repetir a foto de outro corte.
  */
-export function findGalleryPhoto(service, galleryList) {
+export function findGalleryPhoto(service, galleryList, usedGalleryIds = new Set()) {
   if (!galleryList?.length) return null;
 
   const serviceNameNorm = normalizeStr(service.name);
   const serviceId = String(service.id);
 
-  // 1. Vínculo explícito por service_id (se presente na tabela haircut_gallery)
-  const byServiceId = galleryList.find((g) => g.service_id && String(g.service_id) === serviceId);
+  // Considera apenas fotos ainda não associadas a outro serviço (garantia de exclusividade)
+  const availableItems = galleryList.filter((g) => !usedGalleryIds.has(g.id));
+  if (!availableItems.length) return null;
+
+  // 1. Vínculo explícito e prioritário por service_id (se presente na tabela haircut_gallery)
+  const byServiceId = availableItems.find(
+    (g) => g.service_id && String(g.service_id) === serviceId
+  );
   if (byServiceId) return byServiceId;
 
   // 2. Título da galeria idêntico ao nome do serviço
-  const byExactTitle = galleryList.find((g) => normalizeStr(g.title) === serviceNameNorm);
+  const byExactTitle = availableItems.find(
+    (g) => g.title && normalizeStr(g.title) === serviceNameNorm
+  );
   if (byExactTitle) return byExactTitle;
 
-  // 3. Categoria idêntica ao nome do serviço
-  const byExactCategory = galleryList.find((g) => normalizeStr(g.category) === serviceNameNorm);
+  // 3. Categoria da galeria idêntica ao nome do serviço
+  const byExactCategory = availableItems.find(
+    (g) => g.category && normalizeStr(g.category) === serviceNameNorm
+  );
   if (byExactCategory) return byExactCategory;
 
-  // 4. Inclusão direta de substrings (ex: "Degradê" contido em "Degradê Navalhado" ou vice-versa)
-  const bySubstring = galleryList.find((g) => {
-    const normTitle = normalizeStr(g.title);
-    const normCategory = normalizeStr(g.category);
-    return (
-      (normTitle && (serviceNameNorm.includes(normTitle) || normTitle.includes(serviceNameNorm))) ||
-      (normCategory && (serviceNameNorm.includes(normCategory) || normCategory.includes(serviceNameNorm)))
-    );
-  });
-  if (bySubstring) return bySubstring;
-
-  // 5. Casamento inteligente por sobreposição de palavras-chave (tokens)
+  // 4. Casamento semântico balanceado:
+  // Se o serviço for composto (ex.: "Degradê + Sobrancelha"), não pode casar com um item que tenha
+  // apenas "Degradê" no título se existirem outros termos significativos ausentes.
   const serviceTokens = extractTokens(service.name);
+  if (serviceTokens.length === 0) return null;
+
   let bestMatch = null;
   let bestScore = 0;
+  let minTokenDifference = Infinity;
 
-  for (const g of galleryList) {
-    const titleTokens = extractTokens(g.title);
-    const categoryTokens = extractTokens(g.category);
+  for (const g of availableItems) {
+    const titleTokens = extractTokens(g.title || "");
+    const categoryTokens = extractTokens(g.category || "");
     const allTokens = [...new Set([...titleTokens, ...categoryTokens])];
+    if (allTokens.length === 0) continue;
 
-    let score = 0;
+    // Calcula quantos tokens do serviço estão presentes na foto da galeria
+    let matchedCount = 0;
     for (const sTok of serviceTokens) {
       if (
         allTokens.some(
@@ -244,20 +259,34 @@ export function findGalleryPhoto(service, galleryList) {
             (sTok.length >= 4 && gTok.startsWith(sTok))
         )
       ) {
-        score += 1;
+        matchedCount += 1;
       }
     }
 
-    if (score > bestScore) {
-      bestScore = score;
+    // Para evitar que "Degradê + Sobrancelha" pegue foto que é só "Degradê":
+    // Exigimos que TODOS os tokens principais do serviço existam na galeria,
+    // OU que a proporção de cobertura seja alta (> 75%) e sem sobra excessiva.
+    const coverage = matchedCount / serviceTokens.length;
+    const diff = Math.abs(allTokens.length - serviceTokens.length);
+
+    // Só é aceitável se cobrir completamente os termos do serviço
+    // (ex.: se tem "sobrancelha", a foto também DEVE conter "sobrancelha")
+    if (coverage >= 0.8 && matchedCount > bestScore) {
+      bestScore = matchedCount;
+      minTokenDifference = diff;
+      bestMatch = g;
+    } else if (coverage >= 0.8 && matchedCount === bestScore && diff < minTokenDifference) {
+      minTokenDifference = diff;
       bestMatch = g;
     }
   }
 
-  if (bestScore > 0) {
+  // Se o match for satisfatório e cobrir especificamente o serviço, retorna o item
+  if (bestScore >= serviceTokens.length && bestMatch) {
     return bestMatch;
   }
 
+  // Caso contrário, retorna null para exibir o placeholder individual limpo
   return null;
 }
 
@@ -298,9 +327,9 @@ export async function loadCatalog() {
   const processedServices = [];
   const matchedGalleryIds = new Set();
 
-  // 1. Mapeia e enriquece os serviços existentes com as fotos da haircut_gallery
+  // 1. Mapeia e enriquece os serviços existentes com as fotos da haircut_gallery (1 foto única por serviço)
   for (const s of rawServices) {
-    const matchedPhoto = findGalleryPhoto(s, galleryItems);
+    const matchedPhoto = findGalleryPhoto(s, galleryItems, matchedGalleryIds);
     let imageUrl = "";
 
     if (matchedPhoto) {
