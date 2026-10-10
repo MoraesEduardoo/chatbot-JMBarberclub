@@ -45,7 +45,7 @@ export const T = {
   loadingCatalog: "Carregando os serviços…",
   catalogError: "Não consegui carregar os serviços agora. Verifique sua conexão e tente novamente.",
   noServices: "Nenhum serviço disponível no momento. Fale com a barbearia, por favor.",
-  askServices: "Quais serviços você deseja? Pode marcar mais de um — toque nos cartões ou escreva os nomes (ex.: \"degradê e sobrancelha\").",
+  askServices: "Selecione o(s) seu(s) estilo(s) preferido(s):",
   servicesAdded: (names, total) => `Anotado: **${names}** — total **${total}**.\nQuer mais algum? Se não, toque em **Continuar**.`,
   askWhichService: (query) => `"${query}" pode ser mais de um serviço. Qual deles?`,
   unknownService: (query) => `Não encontrei nenhum serviço parecido com "${query}". Toque nos cartões para escolher.`,
