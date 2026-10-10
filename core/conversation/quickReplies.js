@@ -70,18 +70,11 @@ function baseChips(c) {
         MENU,
       ].filter(Boolean);
 
-    case S.CONFIRM: {
-      const rescheduling = c.mode === "reschedule";
-      return [
-        chip(rescheduling ? "✅ Confirmar remarcação" : "✅ Confirmar", { type: "CONFIRM_BOOKING" }),
-        ...(rescheduling
-          ? []
-          : [chip("Trocar serviço", { type: "CHANGE_FIELD", field: "services" }), chip("Trocar barbeiro", { type: "CHANGE_FIELD", field: "barber" })]),
-        chip("Trocar dia", { type: "CHANGE_FIELD", field: "date" }),
-        chip("Trocar horário", { type: "CHANGE_FIELD", field: "time" }),
-        MENU,
-      ];
-    }
+    case S.CONFIRM:
+      // Tela de resumo e confirmação final: a barra inferior de botões secundários
+      // foi removida para eliminar poluição visual, mantendo exclusivamente o botão
+      // principal de destaque no card de resumo para uma ação direta de clique único.
+      return [];
 
     case S.LIST_APPOINTMENTS:
       if (c.appointments.status === "error") return [chip("🔄 Tentar novamente", { type: "RETRY_LIST" }, ""), MENU];

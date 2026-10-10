@@ -302,7 +302,8 @@ export async function loadCatalog() {
   // Consulta paralela das tabelas de negócio e da galeria de fotos do painel
   const [servicesRes, barbersRes, linksRes, galleryRes] = await Promise.all([
     supabase.from("services").select("*"),
-    supabase.from("barbers").select("id, name"),
+    // Busca todas as colunas de barbers para obter avatar_url / photo_url / image_path
+    supabase.from("barbers").select("*"),
     supabase.from("barber_services").select("barber_id, service_id, custom_duration_minutes"),
     // Busca dados da tabela haircut_gallery sem filtros que possam quebrar schemas personalizados
     supabase.from("haircut_gallery").select("*"),
@@ -364,9 +365,22 @@ export async function loadCatalog() {
     }
   }
 
+  // Mapeia os barbeiros garantindo a resolução correta da foto de perfil (avatar_url)
+  const processedBarbers = barbersRes.data?.length
+    ? barbersRes.data.map((b) => {
+        const rawAvatar = b.avatar_url || b.photo_url || b.image_url || b.image_path || b.image || "";
+        return {
+          id: b.id,
+          name: b.name,
+          image: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+          avatar_url: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+        };
+      })
+    : [...FALLBACK_BARBERS];
+
   return {
     services: processedServices.length ? processedServices : [...FALLBACK_SERVICES],
-    barbers: barbersRes.data.length ? barbersRes.data.map((b) => ({ id: b.id, name: b.name, image: "" })) : [...FALLBACK_BARBERS],
+    barbers: processedBarbers,
     links: linksRes.data.map((l) => ({
       barberId: l.barber_id,
       serviceId: l.service_id,

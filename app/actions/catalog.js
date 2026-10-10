@@ -35,7 +35,7 @@ export async function getCatalogAction() {
   try {
     const [servicesRes, barbersRes, linksRes, galleryRes] = await Promise.all([
       supabase.from("services").select("*"),
-      supabase.from("barbers").select("id, name"),
+      supabase.from("barbers").select("*"),
       supabase.from("barber_services").select("barber_id, service_id, custom_duration_minutes"),
       supabase.from("haircut_gallery").select("*"),
     ]);
@@ -86,10 +86,22 @@ export async function getCatalogAction() {
       }
     }
 
+    const processedBarbers = barbersRes.data?.length
+      ? barbersRes.data.map((b) => {
+          const rawAvatar = b.avatar_url || b.photo_url || b.image_url || b.image_path || b.image || "";
+          return {
+            id: b.id,
+            name: b.name,
+            image: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+            avatar_url: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+          };
+        })
+      : [...FALLBACK_BARBERS];
+
     return {
       success: true,
       services: processedServices.length ? processedServices : [...FALLBACK_SERVICES],
-      barbers: barbersRes.data?.length ? barbersRes.data.map((b) => ({ id: b.id, name: b.name, image: "" })) : [...FALLBACK_BARBERS],
+      barbers: processedBarbers,
       links: (linksRes.data || []).map((l) => ({
         barberId: l.barber_id,
         serviceId: l.service_id,
