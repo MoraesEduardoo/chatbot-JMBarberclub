@@ -291,7 +291,74 @@ export function findGalleryPhoto(service, galleryList, usedGalleryIds = new Set(
 }
 
 /**
- * Carrega o catálogo unificado de serviços e fotos para o Chatbot.
+ * Normaliza qualquer formato de dia da semana (número 0..6, 1..7 ISO, siglas ou nomes em português/inglês)
+ * para o índice padrão de JavaScript: 0 = domingo ... 6 = sábado.
+ */
+export function normalizeDayOfWeek(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === "number") {
+    if (val >= 0 && val <= 6) return val;
+    if (val === 7) return 0; // ISO Sunday = 7 -> 0
+    return null;
+  }
+  const s = String(val).trim().toLowerCase();
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    if (n >= 0 && n <= 6) return n;
+    if (n === 7) return 0;
+  }
+  if (s.startsWith("dom") || s === "sun" || s === "sunday") return 0;
+  if (s.startsWith("seg") || s === "mon" || s === "monday") return 1;
+  if (s.startsWith("ter") || s === "tue" || s === "tuesday") return 2;
+  if (s.startsWith("qua") || s === "wed" || s === "wednesday") return 3;
+  if (s.startsWith("qui") || s === "thu" || s === "thursday") return 4;
+  if (s.startsWith("sex") || s === "fri" || s === "friday") return 5;
+  if (s.startsWith("sab") || s.startsWith("sáb") || s === "sat" || s === "saturday") return 6;
+  return null;
+}
+
+/**
+ * Constrói o mapa de expediente semanal do barbeiro a partir das linhas de `barber_schedules`.
+ * Cada dia (0..6) possui status de funcionamento (is_working, closed), horário de início/fim e pausa de almoço.
+ */
+export function buildBarberScheduleMap(schedulesRows, barberId) {
+  if (!Array.isArray(schedulesRows) || !barberId) return null;
+  const barberRows = schedulesRows.filter((r) => String(r.barber_id) === String(barberId));
+  if (!barberRows.length) return null;
+
+  const map = {};
+  for (const row of barberRows) {
+    const day = normalizeDayOfWeek(row.day_of_week ?? row.day ?? row.weekday);
+    if (day === null) continue;
+
+    const isWorking =
+      row.is_working !== false &&
+      row.is_active !== false &&
+      row.closed !== true &&
+      row.is_closed !== true &&
+      row.status !== "closed" &&
+      row.status !== "fechado";
+
+    const start = row.start_time || row.work_start || row.start || null;
+    const end = row.end_time || row.work_end || row.end || null;
+    const lunchStart = row.lunch_start || row.break_start || row.lunchStart || null;
+    const lunchEnd = row.lunch_end || row.break_end || row.lunchEnd || null;
+
+    map[day] = {
+      is_working: isWorking,
+      closed: !isWorking,
+      start: isWorking ? (start ? String(start).slice(0, 5) : "09:00") : null,
+      end: isWorking ? (end ? String(end).slice(0, 5) : "19:00") : null,
+      lunchStart: lunchStart ? String(lunchStart).slice(0, 5) : null,
+      lunchEnd: lunchEnd ? String(lunchEnd).slice(0, 5) : null,
+    };
+  }
+
+  return Object.keys(map).length > 0 ? map : null;
+}
+
+/**
+ * Carrega o catálogo unificado de serviços, fotos e horários de expediente dos barbeiros para o Chatbot.
  */
 export async function loadCatalog() {
   const supabase = getSupabase();
@@ -299,14 +366,16 @@ export async function loadCatalog() {
     return { services: [...FALLBACK_SERVICES], barbers: [...FALLBACK_BARBERS], links: [] };
   }
 
-  // Consulta paralela das tabelas de negócio e da galeria de fotos do painel
-  const [servicesRes, barbersRes, linksRes, galleryRes] = await Promise.all([
+  // Consulta paralela das tabelas de negócio, galeria de fotos e expediente dos barbeiros
+  const [servicesRes, barbersRes, linksRes, galleryRes, schedulesRes] = await Promise.all([
     supabase.from("services").select("*"),
     // Busca todas as colunas de barbers para obter avatar_url / photo_url / image_path
     supabase.from("barbers").select("*"),
     supabase.from("barber_services").select("barber_id, service_id, custom_duration_minutes"),
-    // Busca dados da tabela haircut_gallery sem filtros que possam quebrar schemas personalizados
+    // Busca dados da tabela haircut_gallery sem filtros restritivos
     supabase.from("haircut_gallery").select("*"),
+    // Consulta a tabela oficial de expediente e folgas dos profissionais
+    supabase.from("barber_schedules").select("*"),
   ]);
 
   // Se houver falha crítica nas tabelas estruturais de agendamento
@@ -315,10 +384,24 @@ export async function loadCatalog() {
     throw new AppError("unknown", "Não foi possível carregar os dados da barbearia.");
   }
 
+  // Tolerância a variações no nome da tabela de expediente (barber_schedules vs barber_schedule)
+  let schedulesRows = [];
+  if (!schedulesRes.error && Array.isArray(schedulesRes.data)) {
+    schedulesRows = schedulesRes.data;
+  } else if (schedulesRes.error) {
+    try {
+      const altRes = await supabase.from("barber_schedule").select("*");
+      if (!altRes.error && Array.isArray(altRes.data)) {
+        schedulesRows = altRes.data;
+      }
+    } catch {
+      // Ignora erro se a tabela alternativa também não existir
+    }
+  }
+
   // Processa os itens da haircut_gallery com tolerância a campos opcionais
   let galleryItems = [];
   if (!galleryRes.error && Array.isArray(galleryRes.data)) {
-    // Filtra apenas registros explicitamente desativados (se houver campo is_active)
     galleryItems = galleryRes.data.filter((item) => item.is_active !== false);
   } else if (galleryRes.error) {
     console.warn("[chat] Aviso ao consultar haircut_gallery:", galleryRes.error);
@@ -349,8 +432,7 @@ export async function loadCatalog() {
     });
   }
 
-  // 2. Se a tabela services estiver vazia ou se houver cortes na galeria cadastrados sem registro em services:
-  // Inclui os cortes da galeria para garantir que toda foto cadastrada pelo admin apareça no chat
+  // 2. Se a tabela services estiver vazia ou se houver cortes na galeria cadastrados sem registro em services
   if (processedServices.length === 0 && galleryItems.length > 0) {
     for (const g of galleryItems) {
       const rawImg = g.image_path || g.image_url || g.url || g.photo_url || g.image;
@@ -365,15 +447,23 @@ export async function loadCatalog() {
     }
   }
 
-  // Mapeia os barbeiros garantindo a resolução correta da foto de perfil (avatar_url)
+  // Mapeia os barbeiros garantindo a foto de perfil (avatar_url) e a escala de expediente individual (schedules)
   const processedBarbers = barbersRes.data?.length
     ? barbersRes.data.map((b) => {
         const rawAvatar = b.avatar_url || b.photo_url || b.image_url || b.image_path || b.image || "";
+        const fallbackBarber = FALLBACK_BARBERS.find(
+          (fb) => fb.id === b.id || fb.name.toLowerCase() === b.name?.toLowerCase()
+        );
+        const dbSchedule = buildBarberScheduleMap(schedulesRows, b.id);
+        const schedule = dbSchedule ?? fallbackBarber?.schedules ?? null;
+
         return {
           id: b.id,
           name: b.name,
           image: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
           avatar_url: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+          schedules: schedule,
+          schedule: schedule,
         };
       })
     : [...FALLBACK_BARBERS];

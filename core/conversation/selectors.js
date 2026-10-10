@@ -4,7 +4,8 @@ import { getEligibleBarbers, getTotalDuration, getTotalPrice } from "../domain/e
 import { formatDateLong, formatPrice } from "../domain/time.js";
 
 export const selectEligibleBarbers = (c) => getEligibleBarbers(c.catalog, c.draft.services);
-export const selectBookableDays = (c) => listBookableDays(c.now);
+export const selectBarberSchedule = (c) => c.draft.barber?.schedules ?? c.draft.barber?.schedule ?? null;
+export const selectBookableDays = (c) => listBookableDays(c.now, undefined, selectBarberSchedule(c));
 
 export function selectDuration(c) {
   return c.draft.barber ? getTotalDuration(c.catalog, c.draft.services, c.draft.barber.id) : 0;
@@ -23,7 +24,12 @@ export function selectBooked(c) {
 
 export function selectSlots(c) {
   if (!c.draft.dateKey) return [];
-  return getSlots(c.draft.dateKey, { nowMs: c.now, booked: selectBooked(c), durationMinutes: selectDuration(c) });
+  return getSlots(c.draft.dateKey, {
+    nowMs: c.now,
+    booked: selectBooked(c),
+    durationMinutes: selectDuration(c),
+    barberSchedule: selectBarberSchedule(c),
+  });
 }
 
 export function selectSummary(c) {

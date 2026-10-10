@@ -255,7 +255,8 @@ function pickBarber(c, id) {
 }
 
 function pickDate(c, fx, dateKey, pendingTime = null) {
-  const reason = checkDate(dateKey, c.now);
+  const barberSchedule = c.draft.barber?.schedules ?? c.draft.barber?.schedule ?? null;
+  const reason = checkDate(dateKey, c.now, barberSchedule);
   if (reason) return say(c, T.dateError(reason));
   c.draft.dateKey = dateKey;
   c.draft.time = null;
@@ -316,7 +317,8 @@ function confirmBooking(c, fx) {
     return resume(c, fx);
   }
   // Revalida: o cliente pode ter deixado o resumo aberto por muito tempo.
-  const dateProblem = checkDate(d.dateKey, c.now);
+  const barberSchedule = d.barber?.schedules ?? d.barber?.schedule ?? null;
+  const dateProblem = checkDate(d.dateKey, c.now, barberSchedule);
   if (dateProblem) {
     say(c, T.dateError(dateProblem));
     d.dateKey = null; d.time = null;
@@ -425,14 +427,16 @@ function stateText(c, fx, text) {
       return pickBarber(c, found === "any" ? "any" : found.id);
     }
     case S.CHOOSE_DATE: {
-      const d = parseDate(text, c.now);
+      const barberSchedule = c.draft.barber?.schedules ?? c.draft.barber?.schedule ?? null;
+      const d = parseDate(text, c.now, barberSchedule);
       if (!d) return false;
       if (d.reason) { say(c, T.dateError(d.reason)); return true; }
       pickDate(c, fx, d.dateKey, parseTime(text));
       return true;
     }
     case S.CHOOSE_TIME: {
-      const d = parseDate(text, c.now);
+      const barberSchedule = c.draft.barber?.schedules ?? c.draft.barber?.schedule ?? null;
+      const d = parseDate(text, c.now, barberSchedule);
       if (d?.reason) { say(c, T.dateError(d.reason)); return true; }
       if (d) { pickDate(c, fx, d.dateKey, parseTime(text)); return true; }
       const t = parseTime(text, { allowBareHour: true });
@@ -447,7 +451,8 @@ function stateText(c, fx, text) {
       if (field) { changeField(c, fx, field); return true; }
       const t = parseTime(text);
       if (t) { pickTime(c, t); return true; }
-      const d = parseDate(text, c.now);
+      const barberSchedule = c.draft.barber?.schedules ?? c.draft.barber?.schedule ?? null;
+      const d = parseDate(text, c.now, barberSchedule);
       if (d?.reason) { say(c, T.dateError(d.reason)); return true; }
       if (d) { pickDate(c, fx, d.dateKey, parseTime(text)); return true; }
       return false;

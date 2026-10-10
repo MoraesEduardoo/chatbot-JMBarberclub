@@ -75,6 +75,33 @@ export const FALLBACK_SERVICES = Object.freeze([
 ]);
 
 export const FALLBACK_BARBERS = Object.freeze([
-  { id: "b949db29-efb1-4131-8234-873195068328", name: "Matheus", image: "" },
-  { id: "9ebcd15c-b747-4d0b-b12f-5de9465363f9", name: "William", image: "" },
+  {
+    id: "b949db29-efb1-4131-8234-873195068328",
+    name: "Matheus",
+    image: "",
+    // Escala do painel administrativo (image_1e8042.png): Matheus está FECHADO na segunda-feira
+    schedules: {
+      0: { is_working: false, closed: true },
+      1: { is_working: false, closed: true }, // Segunda-feira: FECHADO / Folga
+      2: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      3: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      4: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      5: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      6: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+    },
+  },
+  {
+    id: "9ebcd15c-b747-4d0b-b12f-5de9465363f9",
+    name: "William",
+    image: "",
+    schedules: {
+      0: { is_working: true, closed: false, start: "09:00", end: "12:30" },
+      1: { is_working: true, closed: false, start: "14:30", end: "19:00" },
+      2: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      3: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      4: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      5: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+      6: { is_working: true, closed: false, start: "09:00", end: "19:00" },
+    },
+  },
 ]);

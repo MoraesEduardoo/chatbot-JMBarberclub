@@ -2,17 +2,17 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { FALLBACK_SERVICES, FALLBACK_BARBERS, RESTRICTED_SERVICE_NAMES } from "@/core/domain/config";
-import { findGalleryPhoto, normalizeStr, resolveHaircutImageUrl } from "@/services/repositories/catalogRepository";
+import { findGalleryPhoto, normalizeStr, resolveHaircutImageUrl, buildBarberScheduleMap } from "@/services/repositories/catalogRepository";
 
 /**
- * Server Action: Obter Catálogo Unificado com Fotos Reais da `haircut_gallery`
+ * Server Action: Obter Catálogo Unificado com Fotos Reais e Escala de Expediente (`barber_schedules`)
  * 
  * Executa no lado do servidor (Next.js App Router):
  * 1. Inicializa o cliente Supabase Server com as credenciais de ambiente.
- * 2. Consulta em paralelo a tabela `services` e a tabela `haircut_gallery`.
- * 3. Para cada foto cadastrada no painel, gera a URL pública oficial através do Supabase Storage.
- * 4. Faz o JOIN inteligente entre o serviço e sua imagem correspondente,
- *    substituindo placeholders vazios pelas fotos reais dos cortes.
+ * 2. Consulta em paralelo: `services`, `barbers`, `barber_services`, `haircut_gallery` e `barber_schedules`.
+ * 3. Faz o match exclusivo de fotos para a galeria de cortes.
+ * 4. Mapeia o expediente oficial e folgas de cada barbeiro a partir de `barber_schedules`
+ *    (impedindo agendamentos em dias fechados, como segunda-feira).
  */
 export async function getCatalogAction() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,16 +33,31 @@ export async function getCatalogAction() {
   });
 
   try {
-    const [servicesRes, barbersRes, linksRes, galleryRes] = await Promise.all([
+    const [servicesRes, barbersRes, linksRes, galleryRes, schedulesRes] = await Promise.all([
       supabase.from("services").select("*"),
       supabase.from("barbers").select("*"),
       supabase.from("barber_services").select("barber_id, service_id, custom_duration_minutes"),
       supabase.from("haircut_gallery").select("*"),
+      supabase.from("barber_schedules").select("*"),
     ]);
 
     if (servicesRes.error || barbersRes.error || linksRes.error) {
       console.error("[ServerAction:catalog] Erro nas tabelas principais:", servicesRes.error || barbersRes.error || linksRes.error);
       throw new Error("Falha ao carregar serviços da barbearia.");
+    }
+
+    let schedulesRows = [];
+    if (!schedulesRes.error && Array.isArray(schedulesRes.data)) {
+      schedulesRows = schedulesRes.data;
+    } else if (schedulesRes.error) {
+      try {
+        const altRes = await supabase.from("barber_schedule").select("*");
+        if (!altRes.error && Array.isArray(altRes.data)) {
+          schedulesRows = altRes.data;
+        }
+      } catch {
+        // Ignora caso tabela alternativa não exista
+      }
     }
 
     const galleryItems = (galleryRes.data || []).filter((g) => g.is_active !== false);
@@ -89,11 +104,19 @@ export async function getCatalogAction() {
     const processedBarbers = barbersRes.data?.length
       ? barbersRes.data.map((b) => {
           const rawAvatar = b.avatar_url || b.photo_url || b.image_url || b.image_path || b.image || "";
+          const fallbackBarber = FALLBACK_BARBERS.find(
+            (fb) => fb.id === b.id || fb.name.toLowerCase() === b.name?.toLowerCase()
+          );
+          const dbSchedule = buildBarberScheduleMap(schedulesRows, b.id);
+          const schedule = dbSchedule ?? fallbackBarber?.schedules ?? null;
+
           return {
             id: b.id,
             name: b.name,
             image: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
             avatar_url: rawAvatar ? resolveHaircutImageUrl(supabase, rawAvatar) : "",
+            schedules: schedule,
+            schedule: schedule,
           };
         })
       : [...FALLBACK_BARBERS];

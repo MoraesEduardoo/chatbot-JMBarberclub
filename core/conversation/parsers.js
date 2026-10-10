@@ -165,9 +165,9 @@ export function parseTime(text, { allowBareHour = false } = {}) {
 const WEEKDAY_WORDS = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 };
 const WEEKDAY_ABBR = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
 
-const validated = (dateKey, nowMs) => {
+const validated = (dateKey, nowMs, barberSchedule = null) => {
   if (!isValidDateKey(dateKey)) return { reason: "invalid" };
-  const reason = checkDate(dateKey, nowMs);
+  const reason = checkDate(dateKey, nowMs, barberSchedule);
   return reason ? { reason } : { dateKey };
 };
 
@@ -175,13 +175,13 @@ const validated = (dateKey, nowMs) => {
  * "hoje", "amanhã", "sexta", "15/10", "dia 20" → { dateKey } | { reason } | null (não é data).
  * reason: "past" | "too_far" | "closed" | "invalid"
  */
-export function parseDate(text, nowMs) {
+export function parseDate(text, nowMs, barberSchedule = null) {
   const t = normalize(text);
   const today = todayKey(nowMs);
 
-  if (/\bdepois de amanha\b/.test(t)) return validated(addDays(today, 2), nowMs);
-  if (/\bamanha\b/.test(t)) return validated(addDays(today, 1), nowMs);
-  if (/\bhoje\b/.test(t)) return validated(today, nowMs);
+  if (/\bdepois de amanha\b/.test(t)) return validated(addDays(today, 2), nowMs, barberSchedule);
+  if (/\bamanha\b/.test(t)) return validated(addDays(today, 1), nowMs, barberSchedule);
+  if (/\bhoje\b/.test(t)) return validated(today, nowMs, barberSchedule);
 
   // dd/mm, dd/mm/aa, dd/mm/aaaa  (ponto fica de fora: "14.30" é horário)
   const dm = t.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
@@ -194,7 +194,7 @@ export function parseDate(text, nowMs) {
     if (!isValidDateKey(key)) return { reason: "invalid" };
     // sem ano e já passou há mais de 30 dias → provavelmente é o ano que vem
     if (!explicitYear && key < today && daysBetween(key, today) > 30) key = `${year + 1}-${pad2(month)}-${pad2(day)}`;
-    return validated(key, nowMs);
+    return validated(key, nowMs, barberSchedule);
   }
 
   // "dia 15" → próxima ocorrência do dia do mês
@@ -205,7 +205,7 @@ export function parseDate(text, nowMs) {
     let month = Number(today.slice(5, 7));
     for (let i = 0; i < 14; i += 1) {
       const key = `${year}-${pad2(month)}-${pad2(day)}`;
-      if (isValidDateKey(key) && key >= today) return validated(key, nowMs);
+      if (isValidDateKey(key) && key >= today) return validated(key, nowMs, barberSchedule);
       month += 1;
       if (month > 12) { month = 1; year += 1; }
     }
@@ -217,7 +217,7 @@ export function parseDate(text, nowMs) {
   const weekday = word ? WEEKDAY_WORDS[word[1]] : (Object.hasOwn(WEEKDAY_ABBR, t) ? WEEKDAY_ABBR[t] : undefined);
   if (weekday !== undefined) {
     const delta = (weekday - weekdayOf(today) + 7) % 7;
-    return validated(addDays(today, delta), nowMs);
+    return validated(addDays(today, delta), nowMs, barberSchedule);
   }
   return null;
 }
