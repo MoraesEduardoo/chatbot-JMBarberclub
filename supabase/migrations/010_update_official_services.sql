@@ -189,9 +189,44 @@ where service_id not in (
     'a0000000-0000-0000-0000-000000000011'
 );
 
--- Redireciona eventuais registros da waitlist
-update public.chatbot_waitlist
-set service_id = null
+-- Redireciona eventuais registros de fila de espera caso as tabelas existam
+do $$
+begin
+    if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'waitlist') then
+        execute 'update public.waitlist set service_id = null where service_id not in (
+            ''a0000000-0000-0000-0000-000000000001'',
+            ''a0000000-0000-0000-0000-000000000002'',
+            ''a0000000-0000-0000-0000-000000000003'',
+            ''a0000000-0000-0000-0000-000000000004'',
+            ''a0000000-0000-0000-0000-000000000005'',
+            ''a0000000-0000-0000-0000-000000000006'',
+            ''a0000000-0000-0000-0000-000000000007'',
+            ''a0000000-0000-0000-0000-000000000008'',
+            ''a0000000-0000-0000-0000-000000000009'',
+            ''a0000000-0000-0000-0000-000000000010'',
+            ''a0000000-0000-0000-0000-000000000011''
+        )';
+    end if;
+
+    if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'chatbot_waitlist') then
+        execute 'update public.chatbot_waitlist set service_id = null where service_id not in (
+            ''a0000000-0000-0000-0000-000000000001'',
+            ''a0000000-0000-0000-0000-000000000002'',
+            ''a0000000-0000-0000-0000-000000000003'',
+            ''a0000000-0000-0000-0000-000000000004'',
+            ''a0000000-0000-0000-0000-000000000005'',
+            ''a0000000-0000-0000-0000-000000000006'',
+            ''a0000000-0000-0000-0000-000000000007'',
+            ''a0000000-0000-0000-0000-000000000008'',
+            ''a0000000-0000-0000-0000-000000000009'',
+            ''a0000000-0000-0000-0000-000000000010'',
+            ''a0000000-0000-0000-0000-000000000011''
+        )';
+    end if;
+end $$;
+
+-- 3. Limpeza das associações de serviços obsoletos em barber_services
+delete from public.barber_services
 where service_id not in (
     'a0000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000002',
@@ -206,7 +241,7 @@ where service_id not in (
     'a0000000-0000-0000-0000-000000000011'
 );
 
--- 3. Limpeza dos serviços obsoletos (remove tudo que não pertence aos 11 oficiais)
+-- 4. Limpeza dos serviços obsoletos (remove tudo que não pertence aos 11 oficiais)
 delete from public.services
 where id not in (
     'a0000000-0000-0000-0000-000000000001',
@@ -222,7 +257,7 @@ where id not in (
     'a0000000-0000-0000-0000-000000000011'
 );
 
--- 4. Vinculação automática em public.barber_services
+-- 5. Vinculação automática em public.barber_services
 -- Garante que TODOS os barbeiros ativos (Matheus e William) fiquem 100% habilitados
 -- para executar todos os 11 serviços oficiais sem diferenciação de preço.
 insert into public.barber_services (barber_id, service_id, is_active)
@@ -231,11 +266,9 @@ from public.barbers b
 cross join public.services s
 where s.is_active = true
 on conflict (barber_id, service_id) do update set 
-    is_active = true,
-    custom_price = null,
-    custom_duration_minutes = null;
+    is_active = true;
 
--- 5. Suporte de compatibilidade caso exista a tabela alternativa barbershop_services
+-- 6. Suporte de compatibilidade caso exista a tabela alternativa barbershop_services
 do $$
 begin
     if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'barbershop_services') then
