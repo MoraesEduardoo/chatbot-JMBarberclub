@@ -5,6 +5,7 @@
 import { BUSINESS_HOURS, SHOP } from "../domain/config.js";
 import { S } from "./states.js";
 import { normalizePhone } from "../domain/phone.js";
+import { formatDateLong } from "../domain/time.js";
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const WEEK_NAMES = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -24,7 +25,7 @@ export function contactLine() {
 
 const DATE_ERRORS = {
   past: "Essa data já passou. Escolha hoje ou um dia futuro.",
-  too_far: "Só consigo agendar com até 6 meses de antecedência. Escolha uma data mais próxima.",
+  too_far: "Só consigo agendar com até 30 dias de antecedência no futuro. Escolha uma data mais próxima.",
   closed: "Não abrimos nesse dia. Escolha outra data.",
   invalid: "Não consegui entender essa data. Tente algo como \"amanhã\", \"sexta\" ou \"15/10\".",
 };
@@ -63,14 +64,20 @@ export const T = {
   timesHeader: (dateText, barber) => `Horários de **${dateText}** com **${barber}**:`,
   stillLoading: "Só um instante, ainda estou consultando a disponibilidade…",
   availabilityError: "Não consegui consultar os horários agora. Tente novamente em instantes.",
-  dayOver: "Hoje não há mais horários disponíveis. Escolha outro dia.",
+  dayOver: "Hoje não há mais horários disponíveis ou o prazo mínimo de 30 minutos expirou. Escolha outro dia.",
   dayFull: "Esse dia está lotado. Que tal outro dia?",
   timeBooked: (time) => `As **${time}** já está ocupado.`,
-  timePast: (time) => `As **${time}** já passou.`,
-  timeOverflow: (time) => `As **${time}** não comporta a duração dos serviços escolhidos antes de fecharmos.`,
+  timePast: (time) => `As **${time}** já passou ou tem menos de 30 minutos de antecedência.`,
+  timeOverflow: (time) => `As **${time}** não comporta a duração somada dos serviços com o intervalo de respiro técnico antes de fecharmos.`,
   timeOffGrid: "Atendemos em intervalos de 30 minutos.",
   suggestTimes: (times) => `Livres perto disso: ${times.map((t) => `**${t}**`).join(", ")}.`,
   sameAsCurrent: "Esse já é o horário do seu agendamento. Escolha outro.",
+
+  // Regra 4: Lista de espera automatizada
+  askWaitlist: (dateText, barber, time) =>
+    `Deseja entrar na **Lista de Espera** para **${dateText}** com **${barber}**${time ? ` (às ${time})` : ""}? Se houver cancelamento, avisamos você prioritariamente!`,
+  waitlistJoined: (name, dateText, barber, time) =>
+    `Perfeito, **${name || "cliente"}**! Te coloquei na **Lista de Espera** para **${dateText}** com **${barber}**${time ? ` (preferência às ${time})` : ""}. ✅\nSe surgir uma vaga por desistência, você será avisado imediatamente no WhatsApp!`,
 
   confirmBook: "Confira seu agendamento. Posso confirmar?",
   confirmReschedule: "Confira a remarcação. Posso confirmar?",
@@ -96,6 +103,10 @@ export const T = {
   pickOneAppointment: "Toque em **Remarcar** ou **Cancelar** no agendamento desejado.",
   confirmCancel: (services, barber, whenText) => `Quer mesmo cancelar **${services}** com **${barber}** — ${whenText}?`,
   keptAppointment: "Certo, mantive o seu agendamento. 👍",
+
+  // Regra 2: Bloqueio de cancelamento/reagendamento com menos de 2 horas de antecedência
+  cannotModifyUnder2Hours: (group, op) =>
+    `O agendamento de **${group.serviceNames.join(" + ")}** com **${group.barberName}** (${formatDateLong(group.dateKey)} às ${group.time}) está a **menos de 2 horas** do horário marcado.\n\nPor políticas da barbearia, ${op === "cancel" ? "o cancelamento" : "a alteração"} autônoma pelo chat só é permitida com pelo menos 2 horas de antecedência.\n\nPara cancelar ou alterar agora, por favor entre em contato direto por telefone ou WhatsApp:\n${contactLine()}`,
 
   priceListIntro: "Nossos serviços e valores:",
   hoursIntro: "Nosso horário de funcionamento:",

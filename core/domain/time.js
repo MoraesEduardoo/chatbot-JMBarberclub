@@ -75,3 +75,17 @@ export function formatDateLong(key) {
 }
 export const formatPrice = (value) =>
   Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/**
+  * Regra 2: Retorna os minutos restantes até a data e hora do agendamento.
+  * @param {string} dateKey - Data no formato YYYY-MM-DD
+  * @param {string} time - Horário no formato HH:MM
+  * @param {number} nowMs - Timestamp atual em milissegundos
+  * @returns {number} Minutos até o agendamento (negativo se já passou)
+  */
+export function minutesUntilAppointment(dateKey, time, nowMs) {
+  const appointmentIso = toTimestamp(dateKey, time);
+  const appointmentMs = Date.parse(appointmentIso);
+  return Math.round((appointmentMs - nowMs) / 60_000);
+}
+

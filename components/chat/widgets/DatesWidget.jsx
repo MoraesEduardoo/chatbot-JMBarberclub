@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, Calendar as CalendarIcon } from "lucide-react";
+import { Clock3, Calendar as CalendarIcon, ClipboardList } from "lucide-react";
 import { selectBookableDays, selectSlots } from "@/core/conversation/selectors";
 import { MONTHS_SHORT, WEEKDAYS_SHORT, formatDateLong, todayKey, weekdayOf } from "@/core/domain/time";
 
@@ -8,8 +8,8 @@ import { MONTHS_SHORT, WEEKDAYS_SHORT, formatDateLong, todayKey, weekdayOf } fro
  * DatesWidget Unificado (Fluxo Contínuo de Data e Horários):
  * - Ao selecionar um dia no carrossel, a grade de horários disponíveis
  *   é exibida imediatamente logo abaixo em um único fluxo contínuo e rápido.
- * - Elimina a sensação de "etapas separadas em excesso" apontada pelo cliente.
- * - Permite trocar de dia livremente tocando em outra data, atualizando os horários na hora.
+ * - Regra 1: Respeita antecedência mínima de 30m e janela máxima de 30 dias.
+ * - Regra 4: Oferece opção direta de entrar na Lista de Espera se o horário ou dia estiver lotado.
  */
 export default function DatesWidget({ ctx, act }) {
   const today = todayKey(ctx.now);
@@ -21,6 +21,8 @@ export default function DatesWidget({ ctx, act }) {
   const slots = isDateSelected
     ? selectSlots(ctx).filter((slot) => slot.reason !== "past")
     : [];
+
+  const hasAnyAvailable = slots.some((s) => s.available);
 
   return (
     <div className="w-full my-2 space-y-4">
@@ -58,7 +60,7 @@ export default function DatesWidget({ ctx, act }) {
         </div>
 
         <p className="mt-1.5 text-[0.72rem] text-zinc-500">
-          Deslize para o lado para ver todos os dias disponíveis.
+          Deslize para o lado para ver todos os dias disponíveis (até 30 dias à frente).
         </p>
       </div>
 
@@ -99,32 +101,60 @@ export default function DatesWidget({ ctx, act }) {
             </div>
           )}
 
-          {status === "ready" && slots.length === 0 && (
-            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-center">
-              <p className="text-xs text-zinc-400">
-                Nenhum horário livre restante neste dia. Por favor, escolha outra data acima.
+          {/* Regra 4: Se o dia estiver esgotado, oferecer entrada em Lista de Espera */}
+          {status === "ready" && (!slots.length || !hasAnyAvailable) && (
+            <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 text-center space-y-3">
+              <p className="text-xs text-zinc-300">
+                Todos os horários de <b className="text-white font-bold">{formatDateLong(selectedDateKey)}</b> com{" "}
+                <b className="text-white font-bold">{ctx.draft?.barber?.name || "o barbeiro"}</b> estão esgotados.
               </p>
+              <button
+                type="button"
+                onClick={() =>
+                  act({
+                    type: "JOIN_WAITLIST",
+                    dateKey: selectedDateKey,
+                    barberId: ctx.draft?.barber?.id,
+                    barberName: ctx.draft?.barber?.name,
+                  }, "Entrar na lista de espera")
+                }
+                className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-red-950/40 cursor-pointer"
+              >
+                <ClipboardList size={16} /> Entrar na Lista de Espera deste dia
+              </button>
             </div>
           )}
 
           {status === "ready" && slots.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 my-1">
-              {slots.map((slot) => {
-                const isSelected = ctx.draft?.time === slot.time;
-                return (
-                  <button
-                    key={slot.time}
-                    type="button"
-                    disabled={!slot.available}
-                    onClick={() => act({ type: "PICK_TIME", time: slot.time }, slot.time)}
-                    className={`time-button select-none touch-manipulation transition-all cursor-pointer shadow-sm min-h-[44px] ${
-                      isSelected ? "selected ring-2 ring-red-500 bg-red-600/20 text-white font-bold" : ""
-                    } ${!slot.available ? "opacity-30 line-through cursor-not-allowed bg-zinc-950/60" : ""}`}
-                  >
-                    {slot.reason === "booked" ? "Ocupado" : slot.time}
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 my-1">
+                {slots.map((slot) => {
+                  const isSelected = ctx.draft?.time === slot.time;
+                  const isBooked = slot.reason === "booked";
+                  return (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      disabled={!slot.available && !isBooked}
+                      onClick={() => act({ type: "PICK_TIME", time: slot.time }, slot.time)}
+                      className={`time-button select-none touch-manipulation transition-all cursor-pointer shadow-sm min-h-[44px] ${
+                        isSelected ? "selected ring-2 ring-red-500 bg-red-600/20 text-white font-bold" : ""
+                      } ${
+                        isBooked
+                          ? "border-dashed border-zinc-700 bg-zinc-950/70 text-zinc-500 hover:border-red-500/50 hover:text-zinc-300"
+                          : !slot.available
+                          ? "opacity-30 line-through cursor-not-allowed bg-zinc-950/60"
+                          : ""
+                      }`}
+                    >
+                      {isBooked ? `${slot.time} (Ocupado)` : slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[0.7rem] text-zinc-500">
+                Toque em um horário livre para agendar, ou em um horário ocupado para entrar na lista de espera.
+              </p>
             </div>
           )}
         </div>

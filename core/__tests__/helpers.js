@@ -5,7 +5,7 @@ import { FALLBACK_BARBERS, FALLBACK_SERVICES } from "../domain/config.js";
 export const NOW = Date.parse("2026-10-05T10:00:00-03:00");
 
 export const CATALOG = {
-  services: FALLBACK_SERVICES.map((s) => ({ ...s, durationMinutes: 30 })),
+  services: FALLBACK_SERVICES.map((s) => ({ ...s, durationMinutes: s.durationMinutes || 30 })),
   barbers: FALLBACK_BARBERS.map((b) => ({ ...b })),
   links: [],
 };

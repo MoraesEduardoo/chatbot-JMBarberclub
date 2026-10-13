@@ -8,7 +8,7 @@
  * - Se o profissional não trabalha em determinado dia (ex: Matheus na segunda-feira),
  *   esse dia NUNCA entra na lista de dias ofertados e é bloqueado com "closed".
  */
-import { BUSINESS_HOURS, SLOT_MINUTES, MIN_LEAD_MINUTES, BOOKING_WINDOW_DAYS } from "./config.js";
+import { BUSINESS_HOURS, SLOT_MINUTES, MIN_LEAD_MINUTES, BOOKING_WINDOW_DAYS, CLEANING_BUFFER_MINUTES } from "./config.js";
 import { addDays, weekdayOf, todayKey, shopClock, timeToMinutes, minutesToTime, WEEKDAYS_SHORT } from "./time.js";
 
 const WEEKDAY_KEYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
@@ -118,17 +118,22 @@ export function gridFor(dateKey, barberSchedule = null) {
 
 /**
  * Situação de cada horário do dia.
+ * Regra 1: Aplica antecedência mínima de 30 minutos em relação ao horário atual.
+ * Regra 3: Soma dinamicamente a duração dos serviços + respiro técnico de limpeza (buffer).
  */
-export function getSlots(dateKey, { nowMs, booked = [], durationMinutes = 0, barberSchedule = null } = {}) {
+export function getSlots(dateKey, { nowMs, booked = [], durationMinutes = 0, bufferMinutes = 0, barberSchedule = null } = {}) {
   const grid = gridFor(dateKey, barberSchedule);
   const bookedSet = booked instanceof Set ? booked : new Set(booked);
-  const needed = Math.max(1, Math.ceil(durationMinutes / SLOT_MINUTES));
+  // Regra 3: Se houver duração informada, soma o respiro técnico (buffer) de limpeza
+  const totalDuration = durationMinutes > 0 ? durationMinutes + (bufferMinutes || 0) : 0;
+  const needed = Math.max(1, Math.ceil(totalDuration / SLOT_MINUTES));
   const clock = shopClock(nowMs);
 
   return grid.map((time, index) => {
     const start = timeToMinutes(time);
     const isPastDay = dateKey < clock.dateKey;
-    const isPastToday = dateKey === clock.dateKey && start <= clock.minutes + MIN_LEAD_MINUTES;
+    // Regra 1: Menos de 30 minutos de antecedência no dia de hoje é impedido
+    const isPastToday = dateKey === clock.dateKey && start < clock.minutes + MIN_LEAD_MINUTES;
     if (isPastDay || isPastToday) return { time, available: false, reason: "past" };
 
     const cells = grid.slice(index, index + needed);

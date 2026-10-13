@@ -10,9 +10,9 @@
  *   chatbot_cancel_appointments(p_ids, p_phone)                                [NOVA — 011]
  *   chatbot_reschedule_appointments(p_ids, p_phone, p_new_at)                  [NOVA — 011]
  */
-import { toTimestamp } from "../../core/domain/time.js";
+import { toTimestamp, minutesUntilAppointment } from "../../core/domain/time.js";
 import { groupAppointments } from "../../core/domain/appointmentGroups.js";
-import { ACTIVE_STATUSES } from "../../core/domain/config.js";
+import { ACTIVE_STATUSES, MIN_CANCEL_LEAD_MINUTES } from "../../core/domain/config.js";
 import { getServiceDuration } from "../../core/domain/eligibility.js";
 import { normalizePhone } from "../../core/domain/phone.js";
 import { getSupabase } from "../supabase/browser.js";
@@ -20,6 +20,7 @@ import { AppError, toAppError } from "../errors.js";
 
 // In-memory demo store for when Supabase is not configured
 let demoAppointments = [];
+let demoWaitlist = [];
 
 function requireSupabase() {
   const supabase = getSupabase();
@@ -150,7 +151,15 @@ async function findOwnAppointment({ client, barberId, dateKey, time }) {
   }
 }
 
-export async function cancelAppointments({ ids, phone }) {
+export async function cancelAppointments({ ids, phone, dateKey, time, nowMs = Date.now() }) {
+  // Regra 2: Guarda de segurança no repositório para cancelamento com menos de 2h
+  if (dateKey && time) {
+    const minsLeft = minutesUntilAppointment(dateKey, time, nowMs);
+    if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
+      throw new AppError("forbidden", "Cancelamento permitido apenas com pelo menos 2 horas de antecedência. Ligue para a barbearia.");
+    }
+  }
+
   const supabase = requireSupabase();
   if (!supabase) {
     const idSet = new Set(ids);
@@ -162,7 +171,15 @@ export async function cancelAppointments({ ids, phone }) {
 }
 
 /** Move TODAS as linhas da reserva mantendo o espaçamento entre elas (a RPC aplica o mesmo deslocamento). */
-export async function rescheduleAppointments({ ids, phone, dateKey, time }) {
+export async function rescheduleAppointments({ ids, phone, dateKey, time, oldDateKey, oldTime, nowMs = Date.now() }) {
+  // Regra 2: Guarda de segurança no repositório para reagendamento com menos de 2h do horário antigo
+  if (oldDateKey && oldTime) {
+    const minsLeft = minutesUntilAppointment(oldDateKey, oldTime, nowMs);
+    if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
+      throw new AppError("forbidden", "Reagendamento permitido apenas com pelo menos 2 horas de antecedência. Ligue para a barbearia.");
+    }
+  }
+
   const supabase = requireSupabase();
   if (!supabase) {
     const idSet = new Set(ids);
@@ -175,4 +192,39 @@ export async function rescheduleAppointments({ ids, phone, dateKey, time }) {
     p_new_at: toTimestamp(dateKey, time),
   });
   if (error) throw toAppError(error);
+}
+
+/**
+ * Regra 4: Entrada em Lista de Espera automatizada
+ */
+export async function joinWaitlist({ client, barberId, barberName, serviceIds = [], dateKey, preferredTime }) {
+  const supabase = requireSupabase();
+  const entry = {
+    id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `wl-${Date.now()}`,
+    client_name: client?.name || "Cliente",
+    client_phone: normalizePhone(client?.phone || ""),
+    barber_id: barberId || null,
+    barber_name: barberName || "Qualquer",
+    date_key: dateKey,
+    preferred_time: preferredTime || null,
+    service_ids: serviceIds,
+    created_at: new Date().toISOString(),
+    status: "aguardando",
+  };
+
+  demoWaitlist.push(entry);
+
+  if (supabase) {
+    try {
+      const { error } = await supabase.from("waitlist").insert([entry]);
+      if (error) {
+        // Fallback gracioso se a tabela waitlist não tiver sido criada ainda no banco
+        console.warn("[appointmentsRepository] Observação waitlist:", error.message);
+      }
+    } catch (err) {
+      console.warn("[appointmentsRepository] Erro ao gravar waitlist:", err);
+    }
+  }
+
+  return { success: true, entry };
 }

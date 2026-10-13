@@ -20,12 +20,18 @@ export function getEligibleBarbers(catalog, services) {
   );
 }
 
-/** Duração de um serviço: `custom_duration_minutes` do barbeiro tem prioridade sobre o padrão. */
+/** Duração de um serviço: `custom_duration_minutes` do barbeiro tem prioridade sobre o padrão da tabela de serviços. */
 export function getServiceDuration(catalog, service, barberId) {
-  const link = catalog.links.find((l) => l.serviceId === service.id && l.barberId === barberId);
-  return link?.customDurationMinutes ?? service.durationMinutes ?? 0;
+  const link = catalog?.links?.find((l) => l.serviceId === service.id && l.barberId === barberId);
+  return link?.customDurationMinutes ?? (service?.durationMinutes ?? 30);
 }
 
+/**
+ * Regra 3: Soma dinâmica de duração de múltiplos serviços:
+ * Quando o cliente seleciona múltiplos serviços (ex: corte + barba), soma os tempos
+ * de duração de cada procedimento com base no catálogo/tabela de serviços para bloquear
+ * o bloco correto de tempo na grade.
+ */
 export const getTotalDuration = (catalog, services, barberId) =>
   services.reduce((sum, service) => sum + getServiceDuration(catalog, service, barberId), 0);
 

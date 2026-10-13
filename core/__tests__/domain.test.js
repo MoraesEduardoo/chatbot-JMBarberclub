@@ -42,8 +42,11 @@ test("slots: passado, ocupado e duração que estoura o expediente", () => {
   const by = Object.fromEntries(slots.map((s) => [s.time, s.reason]));
   assert.equal(by["09:00"], "past");
   assert.equal(by["15:00"], "past");
-  assert.equal(by["15:30"], null);
+  // Regra 1: 15:30 tem menos de 30 minutos de antecedência em relação a 15:15, logo é barrado ("past")
+  assert.equal(by["15:30"], "past");
   assert.equal(by["16:00"], "booked");
+  // 16:30 cumpre a antecedência mínima (> 30 min) e está livre
+  assert.equal(by["16:30"], null);
 
   // 60 min = 2 células: 16:00 ocupado derruba 15:30; 18:30 não cabe (fecha 19:00)
   const long = Object.fromEntries(getSlots("2026-10-07", { nowMs, booked: ["10:00"], durationMinutes: 60 }).map((s) => [s.time, s.reason]));
@@ -56,8 +59,10 @@ test("slots: passado, ocupado e duração que estoura o expediente", () => {
 test("checkDate: passado, longe demais, ok", () => {
   assert.equal(checkDate("2026-10-04", NOW), "past");
   assert.equal(checkDate("2027-06-01", NOW), "too_far");
+  // Regra 1: Limite máximo de 30 dias
+  assert.equal(checkDate("2026-11-15", NOW), "too_far");
   assert.equal(checkDate("2026-10-05", NOW), null);
-  assert.equal(listBookableDays(NOW).length, 180);
+  assert.equal(listBookableDays(NOW).length, 30);
 });
 
 test("elegibilidade: vínculo barber_services manda; sem vínculo, só William faz serviços restritos", () => {

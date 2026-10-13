@@ -440,3 +440,47 @@ test("chips são sempre coerentes com o estado (nunca vazios fora de BOOT/WORKIN
   s.send({ type: "START_BOOKING" });
   assert.ok(quickRepliesFor(s.ctx).some((c) => c.action.type === "GO_MENU"));
 });
+
+test("Regra 2: cancelamento ou remarcação com menos de 2h de antecedência é bloqueado", () => {
+  // Reserva hoje às 11:00, enquanto agora são 10:00 (falta apenas 1 hora = 60 min < 120 min)
+  const urgentGroup = group({
+    dateKey: "2026-10-05",
+    time: "11:00",
+    startsAt: "2026-10-05T11:00:00-03:00",
+  });
+  const s = createSession({ client: KNOWN, backend: { appointments: [urgentGroup] } });
+  s.text("cancelar");
+  assert.equal(s.ctx.state, S.LIST_APPOINTMENTS); // Não avança para confirmação de cancelamento
+  assert.match(s.last(), /menos de 2 horas/);
+  assert.match(s.last(), /telefone ou WhatsApp/);
+
+  // Também bloqueia se tentar remarcar com menos de 2 horas
+  s.send({ type: "PICK_APPOINTMENT", key: urgentGroup.key, op: "reschedule" });
+  assert.equal(s.ctx.state, S.LIST_APPOINTMENTS); // Não avança para seleção de data
+  assert.match(s.last(), /menos de 2 horas/);
+});
+
+test("Regra 4: cliente entra na lista de espera quando o dia está lotado", () => {
+  const allSlots = Array.from({ length: 20 }, (_, i) => `${String(9 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
+  const s = createSession({ client: KNOWN, backend: { booked: allSlots } });
+  s.send({ type: "START_BOOKING" });
+  s.send({ type: "TOGGLE_SERVICE", id: "degrade" });
+  s.send({ type: "CONFIRM_SERVICES" });
+  s.send({ type: "PICK_BARBER", id: MATHEUS });
+  s.send({ type: "PICK_DATE", date: "2026-10-06" });
+
+  assert.equal(s.ctx.state, S.CHOOSE_DATE);
+  assert.match(s.texts().join("\n"), /Lista de Espera/);
+  const waitlistChip = s.ctx.suggest.find((c) => c.action.type === "JOIN_WAITLIST");
+  assert.ok(waitlistChip);
+
+  // Clica para entrar na lista de espera
+  s.send(waitlistChip.action);
+  assert.equal(s.ctx.state, S.DONE);
+  assert.match(s.last(), /Lista de Espera/);
+  const fx = s.log.effects.find((e) => e.type === "JOIN_WAITLIST");
+  assert.ok(fx);
+  assert.equal(fx.dateKey, "2026-10-06");
+  assert.equal(fx.client.name, KNOWN.name);
+});
+

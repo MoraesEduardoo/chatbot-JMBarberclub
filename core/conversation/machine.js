@@ -31,8 +31,9 @@ import {
 } from "./parsers.js";
 import { isValidPhone, normalizePhone } from "../domain/phone.js";
 import { checkDate } from "../domain/availability.js";
+import { MIN_CANCEL_LEAD_MINUTES } from "../domain/config.js";
 import { getEligibleBarbers, getTotalPrice } from "../domain/eligibility.js";
-import { formatDateLong, formatPrice, timeToMinutes } from "../domain/time.js";
+import { formatDateLong, formatPrice, timeToMinutes, minutesUntilAppointment } from "../domain/time.js";
 import { selectSlots, selectSummary } from "./selectors.js";
 
 /* ============================ contexto inicial ============================ */
@@ -278,17 +279,35 @@ function pickTime(c, time) {
   if (c.availability.status !== "ready") return say(c, T.stillLoading);
   const slots = selectSlots(c);
   const slot = slots.find((s) => s.time === time);
-  const suggestTimes = () => {
+  const suggestTimes = (extraChips = []) => {
     const near = nearestFree(slots, time);
-    if (near.length) {
-      say(c, T.suggestTimes(near));
-      c.suggest = near.map((t) => ({ label: t, action: { type: "PICK_TIME", time: t } }));
+    if (near.length || extraChips.length) {
+      if (near.length) say(c, T.suggestTimes(near));
+      c.suggest = [
+        ...near.map((t) => ({ label: t, action: { type: "PICK_TIME", time: t } })),
+        ...extraChips,
+      ];
     }
   };
 
   if (!slot) { say(c, T.timeOffGrid); return suggestTimes(); }
   if (!slot.available) {
-    say(c, slot.reason === "past" ? T.timePast(time) : slot.reason === "overflow" ? T.timeOverflow(time) : T.timeBooked(time));
+    if (slot.reason === "booked") {
+      say(c, `${T.timeBooked(time)}\n${T.askWaitlist(formatDateLong(c.draft.dateKey), c.draft.barber?.name, time)}`);
+      return suggestTimes([
+        {
+          label: "📋 Entrar na lista de espera",
+          action: {
+            type: "JOIN_WAITLIST",
+            dateKey: c.draft.dateKey,
+            barberId: c.draft.barber?.id,
+            barberName: c.draft.barber?.name,
+            preferredTime: time,
+          },
+        },
+      ]);
+    }
+    say(c, slot.reason === "past" ? T.timePast(time) : T.timeOverflow(time));
     return suggestTimes();
   }
   if (c.mode === "reschedule" && c.target && c.target.dateKey === c.draft.dateKey && c.target.time === time) {
@@ -339,6 +358,58 @@ function confirmBooking(c, fx) {
   return fx.push({ type: "SAVE_BOOKING", ...payload, barberId: d.barber.id, serviceIds: d.services.map((s) => s.id) });
 }
 
+/**
+ * Regra 4: Entrada em Lista de Espera (Waitlist):
+ * Se os horários com o barbeiro estiverem esgotados para a data, o cliente pode
+ * entrar na lista de espera automatizada para receber aviso prioritário de desistências.
+ */
+function joinWaitlist(c, fx, a = {}) {
+  const dateKey = a.dateKey || c.draft.dateKey;
+  const barberId = a.barberId || c.draft.barber?.id || null;
+  const barberName = a.barberName || c.draft.barber?.name || "Qualquer profissional";
+  const preferredTime = a.preferredTime || c.draft.time || null;
+
+  if (!dateKey) {
+    say(c, "Para entrar na lista de espera, primeiro selecione a data desejada.");
+    return enterDate(c);
+  }
+
+  if (!c.client.name) {
+    c.afterIdentity = {
+      type: "JOIN_WAITLIST",
+      dateKey,
+      barberId,
+      barberName,
+      preferredTime,
+    };
+    return askName(c);
+  }
+
+  if (!c.client.phone) {
+    c.afterIdentity = {
+      type: "JOIN_WAITLIST",
+      dateKey,
+      barberId,
+      barberName,
+      preferredTime,
+    };
+    return askPhone(c);
+  }
+
+  c.state = S.DONE;
+  say(c, T.waitlistJoined(c.client.name, formatDateLong(dateKey), barberName, preferredTime));
+  fx.push({
+    type: "JOIN_WAITLIST",
+    client: { ...c.client },
+    dateKey,
+    barberId,
+    barberName,
+    preferredTime,
+    serviceIds: c.draft.services.map((s) => s.id),
+  });
+  resetFlow(c);
+}
+
 /* ============================ pós-agendamento ============================== */
 
 function viewAppointments(c, fx, mode = "view", { shortcut = true } = {}) {
@@ -357,6 +428,15 @@ function pickAppointment(c, fx, key, op) {
   if (c.state !== S.LIST_APPOINTMENTS) return undefined;
   const group = c.appointments.groups.find((g) => g.key === key);
   if (!group) return say(c, T.appointmentsError);
+
+  // Regra 2: Janela de Cancelamento / Reagendamento Autónomo:
+  // Permitir que o cliente solicite o cancelamento ou alteração do agendamento diretamente
+  // pelo chat, desde que faltem pelo menos 2 horas para o horário marcado.
+  // Se o prazo for inferior, orienta a contactar a barbearia por telefone.
+  const minsLeft = minutesUntilAppointment(group.dateKey, group.time, c.now);
+  if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
+    return say(c, T.cannotModifyUnder2Hours(group, op));
+  }
 
   if (op === "cancel") {
     c.target = group;
@@ -597,6 +677,9 @@ function handle(c, fx, a) {
       return c.state === S.CHOOSE_SERVICES ? confirmServices(c, fx) : undefined;
     case "PICK_BARBER":
       return c.state === S.CHOOSE_BARBER ? void pickBarber(c, a.id) : undefined;
+    /* ---- agendamento: seleções e lista de espera ---- */
+    case "JOIN_WAITLIST": return joinWaitlist(c, fx, a);
+    case "WAITLIST_SAVED": return undefined;
     case "PICK_DATE":
       return c.state === S.CHOOSE_DATE || c.state === S.CHOOSE_TIME || c.state === S.CONFIRM ? pickDate(c, fx, a.date) : undefined;
     case "PICK_TIME":
@@ -610,7 +693,24 @@ function handle(c, fx, a) {
       c.availability = { status: "ready", key: a.key, booked: a.booked };
       const slots = selectSlots(c);
       if (!slots.some((s) => s.available)) {
-        say(c, slots.length && slots.every((s) => s.reason === "past") ? T.dayOver : T.dayFull);
+        const isPastOnly = slots.length && slots.every((s) => s.reason === "past");
+        if (isPastOnly) {
+          say(c, T.dayOver);
+        } else {
+          // Regra 4: Se todos os horários estiverem ocupados, oferece entrada em lista de espera
+          say(c, `${T.dayFull}\n${T.askWaitlist(formatDateLong(c.draft.dateKey), c.draft.barber?.name)}`);
+          c.suggest = [
+            {
+              label: "📋 Entrar na lista de espera",
+              action: {
+                type: "JOIN_WAITLIST",
+                dateKey: c.draft.dateKey,
+                barberId: c.draft.barber?.id,
+                barberName: c.draft.barber?.name,
+              },
+            },
+          ];
+        }
         c.draft.dateKey = null; c.draft.time = null; c.pendingTime = null;
         return enterDate(c);
       }

@@ -14,10 +14,18 @@ export const SHOP = Object.freeze({
 
 /** Granularidade da grade de horários (minutos). */
 export const SLOT_MINUTES = 30;
-/** Antecedência mínima para aceitar um horário no dia de hoje (0 = qualquer horário futuro). */
-export const MIN_LEAD_MINUTES = 0;
-/** Quantos dias à frente o cliente pode agendar. */
-export const BOOKING_WINDOW_DAYS = 180;
+
+/** Regra 1: Antecedência mínima para agendar horário hoje (30 minutos à frente do horário atual). */
+export const MIN_LEAD_MINUTES = 30;
+
+/** Regra 1: Antecedência máxima permitida no calendário (no máximo 30 dias no futuro). */
+export const BOOKING_WINDOW_DAYS = 30;
+
+/** Regra 2: Janela mínima para cancelamento ou reagendamento autônomo pelo chat (120 minutos = 2 horas). */
+export const MIN_CANCEL_LEAD_MINUTES = 120;
+
+/** Regra 3: Intervalo de limpeza e respiro técnico automático pós-atendimento (10 minutos). */
+export const CLEANING_BUFFER_MINUTES = 10;
 
 /** Horário de funcionamento por dia da semana (0 = domingo … 6 = sábado). */
 export const BUSINESS_HOURS = Object.freeze({
@@ -54,24 +62,24 @@ export const RESTRICTED_BARBER_NAME = "william";
  * Catálogo local — usado apenas quando o Supabase não está configurado
  * (desenvolvimento/demonstração). Com Supabase, os dados vêm das tabelas.
  * ---------------------------------------------------------------------- */
-const svc = (id, name, price, restricted = false) => ({
-  id, name, price, durationMinutes: 0, image: "", restricted,
+const svc = (id, name, price, durationMinutes = 30, restricted = false) => ({
+  id, name, price, durationMinutes, image: "", restricted,
 });
 
 export const FALLBACK_SERVICES = Object.freeze([
-  svc("degrade", "Degradê", 25),
-  svc("tesoura", "Corte Só Tesoura", 25),
-  svc("lowfade-americano", "Lowfade ou Americano", 25),
-  svc("barboterapia", "Barboterapia", 20),
-  svc("corte-barboterapia", "Corte e Barboterapia", 40),
-  svc("corte-barba", "Corte + Barba Simples", 35),
-  svc("barba", "Barba (Cavanhaque ou Design Simples)", 15),
-  svc("degrade-sobrancelha", "Degradê + Sobrancelha", 30),
-  svc("social-sobrancelha", "Social + Sobrancelha", 25),
-  svc("corte-social", "Corte Simples ou Social", 20),
-  svc("limpeza-pele", "Limpeza de Pele", 15),
-  svc("sobrancelha-linha", "Sobrancelha na linha", 15, true),
-  svc("freestyle", "Corte Freestyle", 15, true),
+  svc("degrade", "Degradê", 25, 30),
+  svc("tesoura", "Corte Só Tesoura", 25, 30),
+  svc("lowfade-americano", "Lowfade ou Americano", 25, 30),
+  svc("barboterapia", "Barboterapia", 20, 30),
+  svc("corte-barboterapia", "Corte e Barboterapia", 40, 60),
+  svc("corte-barba", "Corte + Barba Simples", 35, 50),
+  svc("barba", "Barba (Cavanhaque ou Design Simples)", 15, 20),
+  svc("degrade-sobrancelha", "Degradê + Sobrancelha", 30, 40),
+  svc("social-sobrancelha", "Social + Sobrancelha", 25, 35),
+  svc("corte-social", "Corte Simples ou Social", 20, 30),
+  svc("limpeza-pele", "Limpeza de Pele", 15, 30),
+  svc("sobrancelha-linha", "Sobrancelha na linha", 15, 15, true),
+  svc("freestyle", "Corte Freestyle", 15, 30, true),
 ]);
 
 export const FALLBACK_BARBERS = Object.freeze([

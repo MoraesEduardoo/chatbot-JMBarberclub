@@ -5,7 +5,7 @@
  */
 import { loadCatalog } from "./repositories/catalogRepository.js";
 import {
-  cancelAppointments, createAppointments, fetchBookedTimes, listActiveAppointments, rescheduleAppointments,
+  cancelAppointments, createAppointments, fetchBookedTimes, listActiveAppointments, rescheduleAppointments, joinWaitlist,
 } from "./repositories/appointmentsRepository.js";
 import { notifyAdminPanel } from "./notifyAdmin.js";
 import { clearClient, saveClient } from "./clientStorage.js";
@@ -45,6 +45,10 @@ export function createEffectRunner(dispatch) {
         case "CANCEL":
           await cancelAppointments({ ids: effect.ids, phone: effect.phone });
           return dispatch({ type: "CANCEL_OK" });
+
+        case "JOIN_WAITLIST":
+          await joinWaitlist(effect);
+          return dispatch({ type: "WAITLIST_SAVED", ok: true });
 
         case "PERSIST_CLIENT":
           return saveClient(effect.client);

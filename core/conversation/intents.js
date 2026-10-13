@@ -20,6 +20,7 @@ const HOURS = /\b(funcionamento|que horas (?:voces |a barbearia |a loja )?(?:abr
 const CATALOG = /\b(servicos?|precos?|valores?|tabela|catalogo|cardapio|quanto (?:custa|cobra|e|fica|sai)|o que (?:voces )?(?:fazem|tem|oferecem))\b/;
 const START = /\b(agendar|marcar|reservar|quero (?:um |uma )?(?:corte|horario|agendamento|cortar)|novo agendamento|fazer (?:um |o )?agendamento|cortar (?:o )?cabelo|fazer (?:a )?barba)\b/;
 const HELP = /\b(ajuda|ajudar|atendente|humano|falar com (?:alguem|o barbeiro|a barbearia|uma pessoa)|whatsapp|zap|contato)\b/;
+const WAITLIST = /\b(lista de espera|fila de espera|espera|avisa se vagar|avisar se vagar|se tiver vaga)\b/;
 const GREETING = /^(oi|ola|opa|eai|e ai|hey|hello|bom dia|boa tarde|boa noite|salve|fala)\b/;
 const THANKS = /^(obrigad[oa]|valeu|vlw|agradeco|show|top|tmj)\b/;
 
@@ -40,6 +41,7 @@ export function detectGlobalIntent(text, { scope = "idle" } = {}) {
   if (scope === "strict") return HELP_EXACT.test(t) ? { type: "HELP" } : null;
 
   if (RESET_ID.test(t)) return { type: "RESET_IDENTITY" };
+  if (WAITLIST.test(t)) return { type: "JOIN_WAITLIST" };
   if (RESCHEDULE_STRONG.test(t) || (scope === "idle" && RESCHEDULE_SOFT.test(t))) return { type: "VIEW_APPOINTMENTS", mode: "reschedule" };
   if (CANCEL_WORD.test(t)) {
     // "cancelar meu agendamento" (ou qualquer "cancelar" fora de fluxo) → lista para cancelar
