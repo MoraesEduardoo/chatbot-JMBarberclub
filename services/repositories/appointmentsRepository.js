@@ -12,7 +12,7 @@
  */
 import { toTimestamp, minutesUntilAppointment } from "../../core/domain/time.js";
 import { groupAppointments } from "../../core/domain/appointmentGroups.js";
-import { ACTIVE_STATUSES, MIN_CANCEL_LEAD_MINUTES } from "../../core/domain/config.js";
+import { ACTIVE_STATUSES, MIN_CANCEL_LEAD_MINUTES, FREE_CANCELLATION } from "../../core/domain/config.js";
 import { getServiceDuration } from "../../core/domain/eligibility.js";
 import { normalizePhone } from "../../core/domain/phone.js";
 import { getSupabase } from "../supabase/browser.js";
@@ -152,11 +152,11 @@ async function findOwnAppointment({ client, barberId, dateKey, time }) {
 }
 
 export async function cancelAppointments({ ids, phone, dateKey, time, nowMs = Date.now() }) {
-  // Regra 2: Guarda de segurança no repositório para cancelamento com menos de 2h
-  if (dateKey && time) {
+  // Regra 2: Cancelamento livre e autônomo pelo chat
+  if (!FREE_CANCELLATION && MIN_CANCEL_LEAD_MINUTES > 0 && dateKey && time) {
     const minsLeft = minutesUntilAppointment(dateKey, time, nowMs);
     if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
-      throw new AppError("forbidden", "Cancelamento permitido apenas com pelo menos 2 horas de antecedência. Ligue para a barbearia.");
+      throw new AppError("forbidden", "Cancelamento permitido apenas com antecedência. Ligue para a barbearia.");
     }
   }
 
@@ -172,11 +172,11 @@ export async function cancelAppointments({ ids, phone, dateKey, time, nowMs = Da
 
 /** Move TODAS as linhas da reserva mantendo o espaçamento entre elas (a RPC aplica o mesmo deslocamento). */
 export async function rescheduleAppointments({ ids, phone, dateKey, time, oldDateKey, oldTime, nowMs = Date.now() }) {
-  // Regra 2: Guarda de segurança no repositório para reagendamento com menos de 2h do horário antigo
-  if (oldDateKey && oldTime) {
+  // Regra 2: Reagendamento livre e autônomo pelo chat
+  if (!FREE_CANCELLATION && MIN_CANCEL_LEAD_MINUTES > 0 && oldDateKey && oldTime) {
     const minsLeft = minutesUntilAppointment(oldDateKey, oldTime, nowMs);
     if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
-      throw new AppError("forbidden", "Reagendamento permitido apenas com pelo menos 2 horas de antecedência. Ligue para a barbearia.");
+      throw new AppError("forbidden", "Reagendamento permitido apenas com antecedência. Ligue para a barbearia.");
     }
   }
 

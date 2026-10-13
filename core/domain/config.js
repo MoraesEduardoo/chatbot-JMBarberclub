@@ -23,6 +23,7 @@ export const BOOKING_WINDOW_DAYS = 30;
 
 /** Regra 2: Cancelamento e Reagendamento totalmente livres e autónomos pelo chat (sem prazos rígidos ou penalizações). */
 export const FREE_CANCELLATION = true;
+export const MIN_CANCEL_LEAD_MINUTES = 0;
 
 /** Regra 3: Intervalo de limpeza e respiro técnico automático pós-atendimento (10 minutos). */
 export const CLEANING_BUFFER_MINUTES = 10;
