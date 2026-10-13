@@ -76,11 +76,14 @@ export async function getCatalogAction() {
         imageUrl = resolveHaircutImageUrl(supabase, rawImg);
       }
 
+      const rawPrice = Number(s.price || 0);
+      const normalizedPrice = rawPrice >= 100 ? rawPrice / 100 : rawPrice;
+
       processedServices.push({
         id: s.id,
         name: s.name,
-        price: Number(s.price),
-        durationMinutes: s.default_duration_minutes ?? 0,
+        price: normalizedPrice,
+        durationMinutes: s.duration_minutes ?? s.default_duration_minutes ?? 30,
         image: imageUrl,
         restricted: RESTRICTED_SERVICE_NAMES.includes(s.name),
       });

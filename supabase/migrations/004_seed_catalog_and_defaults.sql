@@ -17,22 +17,20 @@ on conflict (id) do update set
     is_active = excluded.is_active,
     display_order = excluded.display_order;
 
--- 2. Catálogo Oficial de Serviços (13 Serviços do JM Barberclub)
+-- 2. Catálogo Oficial de Serviços (11 Serviços Oficiais do JM Barberclub)
 insert into public.services (id, name, description, price, duration_minutes, is_active, display_order, category)
 values
-    ('a0000000-0000-0000-0000-000000000001', 'Degradê', 'Corte degradê moderno com acabamento refinado na navalha.', 2500, 30, true, 1, 'Cortes'),
-    ('a0000000-0000-0000-0000-000000000002', 'Social', 'Corte clássico e elegante, ideal para o dia a dia e trabalho.', 2000, 30, true, 2, 'Cortes'),
-    ('a0000000-0000-0000-0000-000000000003', 'Militar / Simples', 'Corte prático e alinhado, realizado em máquina e tesoura.', 1800, 30, true, 3, 'Cortes'),
-    ('a0000000-0000-0000-0000-000000000004', 'Barba Completa', 'Barba modelada com toalha quente, navalha e óleo hidratante.', 2000, 30, true, 4, 'Barba'),
-    ('a0000000-0000-0000-0000-000000000005', 'Barba Simples', 'Alinhamento rápido e aparo do volume com navalhete.', 1500, 20, true, 5, 'Barba'),
-    ('a0000000-0000-0000-0000-000000000006', 'Degradê + Barba', 'Combo completo: corte degradê de precisão e barba alinhada.', 4000, 60, true, 6, 'Combos'),
-    ('a0000000-0000-0000-0000-000000000007', 'Social + Barba', 'Combo clássico: corte social sofisticado com barba completa.', 3500, 50, true, 7, 'Combos'),
-    ('a0000000-0000-0000-0000-000000000008', 'Pézinho / Acabamento', 'Delineamento e contorno preciso do corte na navalha.', 1000, 15, true, 8, 'Acabamento'),
-    ('a0000000-0000-0000-0000-000000000009', 'Sobrancelha', 'Design e limpeza com navalhete para valorizar a expressão.', 800, 15, true, 9, 'Estética'),
-    ('a0000000-0000-0000-0000-000000000010', 'Lavagem Especial', 'Lavagem com massagem capilar e produtos selecionados.', 1000, 15, true, 10, 'Tratamentos'),
-    ('a0000000-0000-0000-0000-000000000011', 'Hidratação Capilar', 'Tratamento intensivo de recuperação do brilho e maciez dos fios.', 2000, 30, true, 11, 'Tratamentos'),
-    ('a0000000-0000-0000-0000-000000000012', 'Pigmentação de Barba', 'Correção e preenchimento visual de falhas com tintura especial.', 1500, 25, true, 12, 'Barba'),
-    ('a0000000-0000-0000-0000-000000000013', 'Corte Infantil', 'Atendimento paciente e cuidadoso para crianças até 10 anos.', 2500, 35, true, 13, 'Cortes')
+    ('a0000000-0000-0000-0000-000000000001', 'Degradê', 'Corte degradê moderno com acabamento refinado e transição suave.', 2500, 30, true, 1, 'Cortes'),
+    ('a0000000-0000-0000-0000-000000000002', 'Corte SÓ Tesoura', 'Corte tradicional executado 100% na tesoura com alinhamento e precisão.', 2500, 40, true, 2, 'Cortes'),
+    ('a0000000-0000-0000-0000-000000000003', 'Lowfade ou Americano', 'Degradê baixo e estiloso no modelo Low Fade ou Americano.', 2500, 30, true, 3, 'Cortes'),
+    ('a0000000-0000-0000-0000-000000000004', 'Barboterapia', 'Tratamento relaxante com toalha quente, esfoliação e hidratação profunda.', 2000, 30, true, 4, 'Barba'),
+    ('a0000000-0000-0000-0000-000000000005', 'Corte e Barboterapia', 'Combo premium completo: corte alinhado e barboterapia relaxante.', 4000, 60, true, 5, 'Combos'),
+    ('a0000000-0000-0000-0000-000000000006', 'Corte + Barba Simples', 'Combo prático: corte alinhado com aparo e contorno de barba simples.', 3500, 50, true, 6, 'Combos'),
+    ('a0000000-0000-0000-0000-000000000007', 'Barba (Cavanhaque ou Design Simples)', 'Aparo e contorno de barba, cavanhaque ou desenho simples com navalhete.', 1500, 20, true, 7, 'Barba'),
+    ('a0000000-0000-0000-0000-000000000008', 'Degradê + Sobrancelha', 'Corte degradê de alta precisão com design e limpeza de sobrancelha.', 3000, 40, true, 8, 'Combos'),
+    ('a0000000-0000-0000-0000-000000000009', 'Social + Sobrancelha', 'Corte social clássico acompanhado de design e limpeza de sobrancelha.', 2500, 40, true, 9, 'Combos'),
+    ('a0000000-0000-0000-0000-000000000010', 'Corte Simples ou Social', 'Corte simples tradicional na máquina ou tesoura para o dia a dia.', 2000, 30, true, 10, 'Cortes'),
+    ('a0000000-0000-0000-0000-000000000011', 'Limpeza de Pele', 'Procedimento facial revigorante com remoção de impurezas e oleosidade.', 1500, 25, true, 11, 'Estética')
 on conflict (id) do update set
     name = excluded.name,
     description = excluded.description,

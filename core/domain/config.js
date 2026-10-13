@@ -68,17 +68,17 @@ const svc = (id, name, price, durationMinutes = 30, restricted = false) => ({
 
 export const FALLBACK_SERVICES = Object.freeze([
   svc("degrade", "Degradê", 25, 30),
-  svc("tesoura", "Corte Só Tesoura", 25, 30),
+  svc("tesoura", "Corte SÓ Tesoura", 25, 40),
   svc("lowfade-americano", "Lowfade ou Americano", 25, 30),
   svc("barboterapia", "Barboterapia", 20, 30),
   svc("corte-barboterapia", "Corte e Barboterapia", 40, 60),
   svc("corte-barba", "Corte + Barba Simples", 35, 50),
   svc("barba", "Barba (Cavanhaque ou Design Simples)", 15, 20),
   svc("degrade-sobrancelha", "Degradê + Sobrancelha", 30, 40),
-  svc("social-sobrancelha", "Social + Sobrancelha", 25, 35),
+  svc("social-sobrancelha", "Social + Sobrancelha", 25, 40),
   svc("corte-social", "Corte Simples ou Social", 20, 30),
-  svc("limpeza-pele", "Limpeza de Pele", 15, 30),
-  svc("sobrancelha-linha", "Sobrancelha na linha", 15, 15, true),
+  svc("limpeza-pele", "Limpeza de Pele", 15, 25),
+  // Serviços de teste/legado preservados para testes de restrição
   svc("freestyle", "Corte Freestyle", 15, 30, true),
 ]);
 
