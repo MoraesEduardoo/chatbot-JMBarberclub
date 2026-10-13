@@ -31,9 +31,8 @@ import {
 } from "./parsers.js";
 import { isValidPhone, normalizePhone } from "../domain/phone.js";
 import { checkDate } from "../domain/availability.js";
-import { MIN_CANCEL_LEAD_MINUTES } from "../domain/config.js";
 import { getEligibleBarbers, getTotalPrice } from "../domain/eligibility.js";
-import { formatDateLong, formatPrice, timeToMinutes, minutesUntilAppointment } from "../domain/time.js";
+import { formatDateLong, formatPrice, timeToMinutes } from "../domain/time.js";
 import { selectSlots, selectSummary } from "./selectors.js";
 
 /* ============================ contexto inicial ============================ */
@@ -429,15 +428,9 @@ function pickAppointment(c, fx, key, op) {
   const group = c.appointments.groups.find((g) => g.key === key);
   if (!group) return say(c, T.appointmentsError);
 
-  // Regra 2: Janela de Cancelamento / Reagendamento Autónomo:
-  // Permitir que o cliente solicite o cancelamento ou alteração do agendamento diretamente
-  // pelo chat, desde que faltem pelo menos 2 horas para o horário marcado.
-  // Se o prazo for inferior, orienta a contactar a barbearia por telefone.
-  const minsLeft = minutesUntilAppointment(group.dateKey, group.time, c.now);
-  if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
-    return say(c, T.cannotModifyUnder2Hours(group, op));
-  }
-
+  // Regra 2: Cancelamento e Reagendamento Totalmente Livres e Autônomos:
+  // O cliente possui autonomia completa para cancelar ou alterar o seu agendamento diretamente
+  // pelo chat a qualquer momento, sem restrições de prazo rígido, barreiras temporais ou penalidades.
   if (op === "cancel") {
     c.target = group;
     c.state = S.CONFIRM_CANCEL;

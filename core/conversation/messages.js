@@ -104,9 +104,8 @@ export const T = {
   confirmCancel: (services, barber, whenText) => `Quer mesmo cancelar **${services}** com **${barber}** — ${whenText}?`,
   keptAppointment: "Certo, mantive o seu agendamento. 👍",
 
-  // Regra 2: Bloqueio de cancelamento/reagendamento com menos de 2 horas de antecedência
-  cannotModifyUnder2Hours: (group, op) =>
-    `O agendamento de **${group.serviceNames.join(" + ")}** com **${group.barberName}** (${formatDateLong(group.dateKey)} às ${group.time}) está a **menos de 2 horas** do horário marcado.\n\nPor políticas da barbearia, ${op === "cancel" ? "o cancelamento" : "a alteração"} autônoma pelo chat só é permitida com pelo menos 2 horas de antecedência.\n\nPara cancelar ou alterar agora, por favor entre em contato direto por telefone ou WhatsApp:\n${contactLine()}`,
+  // Regra 2: Cancelamento e remarcação totalmente livres pelo chat a qualquer momento
+  freeCancellationNotice: "Você pode cancelar ou remarcar o seu horário de forma livre e autônoma a qualquer momento.",
 
   priceListIntro: "Nossos serviços e valores:",
   hoursIntro: "Nosso horário de funcionamento:",

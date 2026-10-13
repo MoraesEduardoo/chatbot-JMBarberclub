@@ -441,23 +441,25 @@ test("chips são sempre coerentes com o estado (nunca vazios fora de BOOT/WORKIN
   assert.ok(quickRepliesFor(s.ctx).some((c) => c.action.type === "GO_MENU"));
 });
 
-test("Regra 2: cancelamento ou remarcação com menos de 2h de antecedência é bloqueado", () => {
-  // Reserva hoje às 11:00, enquanto agora são 10:00 (falta apenas 1 hora = 60 min < 120 min)
+test("Regra 2: cancelamento e remarcação são totalmente livres e autônomos (sem bloqueio de 2h)", () => {
+  // Mesmo que o agendamento seja hoje às 11:00 e agora sejam 10:00 (1 hora de antecedência)
   const urgentGroup = group({
     dateKey: "2026-10-05",
     time: "11:00",
     startsAt: "2026-10-05T11:00:00-03:00",
   });
   const s = createSession({ client: KNOWN, backend: { appointments: [urgentGroup] } });
+  
+  // Cancelamento avança livremente para confirmação
   s.text("cancelar");
-  assert.equal(s.ctx.state, S.LIST_APPOINTMENTS); // Não avança para confirmação de cancelamento
-  assert.match(s.last(), /menos de 2 horas/);
-  assert.match(s.last(), /telefone ou WhatsApp/);
+  assert.equal(s.ctx.state, S.CONFIRM_CANCEL);
+  assert.match(s.last(), /Quer mesmo cancelar/);
 
-  // Também bloqueia se tentar remarcar com menos de 2 horas
-  s.send({ type: "PICK_APPOINTMENT", key: urgentGroup.key, op: "reschedule" });
-  assert.equal(s.ctx.state, S.LIST_APPOINTMENTS); // Não avança para seleção de data
-  assert.match(s.last(), /menos de 2 horas/);
+  // Remarcação avança livremente para escolha de data
+  const s2 = createSession({ client: KNOWN, backend: { appointments: [urgentGroup] } });
+  s2.text("remarcar");
+  assert.equal(s2.ctx.state, S.CHOOSE_DATE);
+  assert.equal(s2.ctx.mode, "reschedule");
 });
 
 test("Regra 4: cliente entra na lista de espera quando o dia está lotado", () => {

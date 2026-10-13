@@ -2,12 +2,12 @@
 
 import { createClient } from "@supabase/supabase-js";
 import {
-  toTimestamp, weekdayOf, timeToMinutes, WEEKDAYS_LONG, shopClock, todayKey, daysBetween, minutesUntilAppointment
+  toTimestamp, weekdayOf, timeToMinutes, WEEKDAYS_LONG, shopClock, todayKey, daysBetween
 } from "@/core/domain/time";
 import { normalizePhone } from "@/core/domain/phone";
 import {
   FALLBACK_BARBERS, FALLBACK_SERVICES, BUSINESS_HOURS, MIN_LEAD_MINUTES, BOOKING_WINDOW_DAYS,
-  MIN_CANCEL_LEAD_MINUTES, CLEANING_BUFFER_MINUTES
+  CLEANING_BUFFER_MINUTES
 } from "@/core/domain/config";
 import { buildBarberScheduleMap } from "@/services/repositories/catalogRepository";
 
@@ -264,25 +264,13 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
  * SERVER ACTION: cancelAppointmentAction
  * =========================================================================
  * 
- * Regra 2: Janela de Cancelamento Autónomo:
- * - Só permite cancelamento direto pelo chat se faltarem pelo menos 2 horas
- *   (120 minutos) para o horário marcado.
- * - Caso falte menos de 2 horas, rejeita com erro e orienta contato telefônico.
+ * Regra 2: Cancelamento Totalmente Livre e Autónomo:
+ * - O cliente pode cancelar seu agendamento diretamente pelo chat a qualquer momento.
+ * - Sem restrições de prazo rígido, sem bloqueio de 2 horas e sem penalizações.
  */
-export async function cancelAppointmentAction({ ids, phone, dateKey, time }) {
+export async function cancelAppointmentAction({ ids, phone }) {
   if (!Array.isArray(ids) || !ids.length || !phone) {
     return { success: false, error: "Dados incompletos para cancelamento." };
-  }
-
-  // Regra 2: Validação da janela de 2 horas
-  if (dateKey && time) {
-    const minsLeft = minutesUntilAppointment(dateKey, time, Date.now());
-    if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
-      return {
-        success: false,
-        error: "Cancelamentos com menos de 2 horas de antecedência devem ser solicitados diretamente com a barbearia por telefone.",
-      };
-    }
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -310,27 +298,19 @@ export async function cancelAppointmentAction({ ids, phone, dateKey, time }) {
  * SERVER ACTION: rescheduleAppointmentAction
  * =========================================================================
  * 
- * Regra 2: Janela de Reagendamento Autónomo:
- * - Valida se faltam pelo menos 2 horas para o horário antigo agendado.
- * - Valida se a nova data/horário cumpre a antecedência mínima de 30m e máxima de 30 dias.
+ * Regra 2: Remarcação Totalmente Livre e Autónoma:
+ * - O cliente pode alterar seu agendamento a qualquer momento de forma livre e autônoma pelo chat.
+ * - Sem restrições de prazo no horário original.
+ * 
+ * Regra 1: Validação de Antecedência e Limites para a Nova Data:
+ * - Antecedência mínima de 30m para hoje e máxima de 30 dias no futuro.
  */
-export async function rescheduleAppointmentAction({ ids, phone, oldDateKey, oldTime, newDateKey, newTime }) {
+export async function rescheduleAppointmentAction({ ids, phone, newDateKey, newTime }) {
   if (!Array.isArray(ids) || !ids.length || !phone || !newDateKey || !newTime) {
     return { success: false, error: "Dados incompletos para remarcação." };
   }
 
   const nowMs = Date.now();
-
-  // Regra 2: Validação da janela de 2 horas do horário original
-  if (oldDateKey && oldTime) {
-    const minsLeft = minutesUntilAppointment(oldDateKey, oldTime, nowMs);
-    if (minsLeft < MIN_CANCEL_LEAD_MINUTES) {
-      return {
-        success: false,
-        error: "Alterações com menos de 2 horas de antecedência devem ser solicitadas diretamente com a barbearia por telefone.",
-      };
-    }
-  }
 
   // Regra 1: Validação de limites da nova data
   const today = todayKey(nowMs);

@@ -21,8 +21,8 @@ export const MIN_LEAD_MINUTES = 30;
 /** Regra 1: Antecedência máxima permitida no calendário (no máximo 30 dias no futuro). */
 export const BOOKING_WINDOW_DAYS = 30;
 
-/** Regra 2: Janela mínima para cancelamento ou reagendamento autônomo pelo chat (120 minutos = 2 horas). */
-export const MIN_CANCEL_LEAD_MINUTES = 120;
+/** Regra 2: Cancelamento e Reagendamento totalmente livres e autónomos pelo chat (sem prazos rígidos ou penalizações). */
+export const FREE_CANCELLATION = true;
 
 /** Regra 3: Intervalo de limpeza e respiro técnico automático pós-atendimento (10 minutos). */
 export const CLEANING_BUFFER_MINUTES = 10;
