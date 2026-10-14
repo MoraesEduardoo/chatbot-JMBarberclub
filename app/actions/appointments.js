@@ -220,15 +220,52 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
   }
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
-  const appointmentAt = toTimestamp(dateKey, time);
+  const cleanPhone = normalizePhone(client.phone);
 
-  const { data, error } = await supabase.rpc("chatbot_create_appointments", {
+  // 1. Upsert transparente de cliente: garante client_id válido e nunca nulo
+  let clientId = null;
+  try {
+    const { data: cData } = await supabase
+      .from("clients")
+      .upsert(
+        {
+          name: client.name.trim(),
+          phone: cleanPhone,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "phone" }
+      )
+      .select("id")
+      .single();
+
+    if (cData?.id) clientId = cData.id;
+  } catch (err) {
+    console.warn("[ServerAction:appointments] Upsert prévio de cliente:", err);
+  }
+
+  // 2. Chamada à RPC oficial chatbot_create_appointments
+  const timeFormatted = time.length === 5 ? `${time}:00` : time;
+  let rpcRes = await supabase.rpc("chatbot_create_appointments", {
+    p_client_name: client.name.trim(),
+    p_client_phone: cleanPhone,
     p_barber_id: barberId,
     p_service_ids: serviceIds,
-    p_client_name: client.name,
-    p_client_phone: normalizePhone(client.phone),
-    p_appointment_at: appointmentAt,
+    p_date: dateKey,
+    p_time: timeFormatted,
+    p_notes: "Agendamento via Chatbot",
   });
+
+  if (rpcRes.error && (rpcRes.error.message?.includes("Could not find the function") || rpcRes.error.code === "PGRST202")) {
+    rpcRes = await supabase.rpc("chatbot_create_appointments", {
+      p_barber_id: barberId,
+      p_service_ids: serviceIds,
+      p_client_name: client.name.trim(),
+      p_client_phone: cleanPhone,
+      p_appointment_at: toTimestamp(dateKey, time),
+    });
+  }
+
+  const { data, error } = rpcRes;
 
   if (error) {
     console.error("[ServerAction:appointments] Erro ao gravar agendamento:", error);
@@ -245,6 +282,31 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
     };
   }
 
+  // 3. Processamento do retorno JSONB da RPC
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    if (data.success === false) {
+      return {
+        success: false,
+        error: data.message || "Horário indisponível no momento.",
+        isConflict: data.code === "TIME_SLOT_UNAVAILABLE" || data.code === "CONFLICT",
+      };
+    }
+    if (Array.isArray(data.appointment_ids) && data.appointment_ids.length > 0) {
+      return {
+        success: true,
+        ids: data.appointment_ids,
+        clientId,
+      };
+    }
+    if (data.appointment_id) {
+      return {
+        success: true,
+        ids: [data.appointment_id],
+        clientId,
+      };
+    }
+  }
+
   const ids = Array.isArray(data) ? data.filter(Boolean) : data ? [data] : [];
   if (!ids.length) {
     return {
@@ -256,6 +318,7 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
   return {
     success: true,
     ids,
+    clientId,
   };
 }
 
@@ -280,14 +343,33 @@ export async function cancelAppointmentAction({ ids, phone }) {
     return { success: true, isDemo: true };
   }
 
+  const cleanPhone = normalizePhone(phone);
   const supabase = createClient(url, key, { auth: { persistSession: false } });
-  const { error } = await supabase.rpc("chatbot_cancel_appointments", {
-    p_ids: ids,
-    p_phone: normalizePhone(phone),
-  });
 
-  if (error) {
-    return { success: false, error: error.message || "Erro ao cancelar agendamento." };
+  for (const aptId of ids) {
+    let rpcRes = await supabase.rpc("chatbot_cancel_appointments", {
+      p_phone: cleanPhone,
+      p_appointment_id: aptId,
+      p_reason: "Cancelamento livre via Chatbot",
+    });
+
+    if (rpcRes.error && (rpcRes.error.message?.includes("Could not find the function") || rpcRes.error.code === "PGRST202")) {
+      rpcRes = await supabase.rpc("chatbot_cancel_appointments", {
+        p_ids: ids,
+        p_phone: cleanPhone,
+      });
+      if (rpcRes.error) return { success: false, error: rpcRes.error.message };
+      return { success: true };
+    }
+
+    if (rpcRes.error) {
+      // Fallback direto
+      await supabase
+        .from("appointments")
+        .update({ status: "canceled", updated_at: new Date().toISOString() })
+        .eq("id", aptId)
+        .eq("client_phone", cleanPhone);
+    }
   }
 
   return { success: true };
@@ -333,15 +415,32 @@ export async function rescheduleAppointmentAction({ ids, phone, newDateKey, newT
     return { success: true, isDemo: true };
   }
 
+  const cleanPhone = normalizePhone(phone);
+  const timeFormatted = newTime.length === 5 ? `${newTime}:00` : newTime;
+  const primaryId = ids[0];
   const supabase = createClient(url, key, { auth: { persistSession: false } });
-  const { error } = await supabase.rpc("chatbot_reschedule_appointments", {
-    p_ids: ids,
-    p_phone: normalizePhone(phone),
-    p_new_at: toTimestamp(newDateKey, newTime),
+
+  let rpcRes = await supabase.rpc("chatbot_reschedule_appointments", {
+    p_phone: cleanPhone,
+    p_appointment_id: primaryId,
+    p_new_date: newDateKey,
+    p_new_time: timeFormatted,
   });
 
-  if (error) {
-    return { success: false, error: error.message || "Erro ao reagendar no sistema." };
+  if (rpcRes.error && (rpcRes.error.message?.includes("Could not find the function") || rpcRes.error.code === "PGRST202")) {
+    rpcRes = await supabase.rpc("chatbot_reschedule_appointments", {
+      p_ids: ids,
+      p_phone: cleanPhone,
+      p_new_at: toTimestamp(newDateKey, newTime),
+    });
+  }
+
+  if (rpcRes.error) {
+    return { success: false, error: rpcRes.error.message || "Erro ao reagendar no sistema." };
+  }
+
+  if (rpcRes.data && typeof rpcRes.data === "object" && rpcRes.data.success === false) {
+    return { success: false, error: rpcRes.data.message || "Horário indisponível para remarcação." };
   }
 
   return { success: true };

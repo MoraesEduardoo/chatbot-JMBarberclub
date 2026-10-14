@@ -38,16 +38,22 @@ export async function fetchBookedTimes({ barberId, dateKey }) {
   }
   const { data, error } = await supabase.rpc("chatbot_booked_times", { p_barber_id: barberId, p_date: dateKey });
   if (error) throw toAppError(error);
-  return [...new Set((data || []).map((row) => String(row.appointment_time).slice(0, 5)))];
+  return [
+    ...new Set(
+      (data || []).map((row) =>
+        String(row.booked_time || row.appointment_time || row.time || "").slice(0, 5)
+      )
+    ),
+  ].filter(Boolean);
 }
 
 /** Agendamentos ATIVOS e futuros do telefone, já agrupados (1 grupo = 1 reserva do cliente). */
 export async function listActiveAppointments({ phone, catalog }) {
+  const normPhone = normalizePhone(phone);
   const supabase = requireSupabase();
   if (!supabase) {
-    const norm = normalizePhone(phone);
     const rows = demoAppointments
-      .filter((a) => a.phone === norm && ACTIVE_STATUSES.includes(a.status))
+      .filter((a) => a.phone === normPhone && ACTIVE_STATUSES.includes(a.status))
       .map((a) => ({
         id: a.id,
         barberId: a.barberId,
@@ -67,21 +73,62 @@ export async function listActiveAppointments({ phone, catalog }) {
     });
   }
 
-  const { data, error } = await supabase.rpc("chatbot_list_appointments", { p_phone: normalizePhone(phone) });
-  if (error) throw toAppError(error);
+  let rpcData = null;
+  const { data, error } = await supabase.rpc("chatbot_list_appointments", { p_phone: normPhone });
 
-  const rows = (data || [])
-    .filter((row) => ACTIVE_STATUSES.includes(row.status))
-    .map((row) => ({
-      id: row.id,
-      barberId: row.barber_id,
-      barberName: row.barber_name ?? catalog?.barbers.find((b) => b.id === row.barber_id)?.name ?? "Profissional",
-      serviceId: row.service_id,
-      serviceName: row.service_name ?? catalog?.services.find((s) => s.id === row.service_id)?.name ?? "Serviço",
-      startsAt: row.appointment_date,
-      status: row.status,
-      batchKey: row.created_at ?? null,
-    }));
+  if (error) {
+    // Fallback defensivo: se a RPC falhar, consulta direta na tabela appointments
+    try {
+      const { data: directData } = await supabase
+        .from("appointments")
+        .select("id, barber_id, service_id, client_name, appointment_date, appointment_time, status, created_at, barbers(name), services(name)")
+        .eq("client_phone", normPhone)
+        .in("status", ["confirmed", "confirmado", "pending", "pendente"])
+        .gte("appointment_date", new Date().toISOString().slice(0, 10))
+        .order("appointment_date", { ascending: true })
+        .order("appointment_time", { ascending: true });
+
+      if (Array.isArray(directData)) {
+        rpcData = directData.map((r) => ({
+          appointment_id: r.id,
+          barber_id: r.barber_id,
+          barber_name: r.barbers?.name,
+          service_id: r.service_id,
+          service_name: r.services?.name,
+          appointment_date: r.appointment_date,
+          appointment_time: r.appointment_time,
+          status: r.status,
+          created_at: r.created_at,
+        }));
+      }
+    } catch {
+      throw toAppError(error);
+    }
+  } else {
+    rpcData = data;
+  }
+
+  const rows = (rpcData || [])
+    .filter((row) => {
+      const s = String(row.status || "").toLowerCase();
+      return s === "confirmed" || s === "confirmado" || s === "pending" || s === "pendente";
+    })
+    .map((row) => {
+      const rawDate = row.appointment_date ? String(row.appointment_date).slice(0, 10) : "";
+      const rawTime = row.appointment_time ? String(row.appointment_time).slice(0, 5) : "09:00";
+      const startsAt = rawDate.includes("T") ? rawDate : toTimestamp(rawDate, rawTime);
+
+      return {
+        id: row.appointment_id || row.id,
+        barberId: row.barber_id,
+        barberName: row.barber_name ?? catalog?.barbers.find((b) => b.id === row.barber_id)?.name ?? "Profissional",
+        serviceId: row.service_id,
+        serviceName: row.service_name ?? catalog?.services.find((s) => s.id === row.service_id)?.name ?? "Serviço",
+        startsAt,
+        status: row.status,
+        batchKey: row.created_at ?? row.batchKey ?? null,
+      };
+    });
 
   return groupAppointments(rows, {
     durationOf: (row) => {
@@ -93,11 +140,15 @@ export async function listActiveAppointments({ phone, catalog }) {
 
 /**
  * Cria a reserva (uma linha por serviço) e devolve os ids.
- * Idempotente: se a RPC acusar conflito (23505/409) mas a reserva JÁ É do mesmo cliente
- * (a 1ª resposta se perdeu na rede e ele reenviou), devolve os ids existentes em vez de erro.
+ * Inclui:
+ * 1. Upsert transparente de cliente na tabela `clients` para garantir client_id não nulo.
+ * 2. Suporte rigoroso aos parâmetros oficiais da RPC (p_date, p_time) com fallback para timestamps.
+ * 3. Idempotência e tratamento de conflitos.
  */
 export async function createAppointments({ client, barberId, serviceIds, dateKey, time }) {
   const supabase = requireSupabase();
+  const cleanPhone = normalizePhone(client.phone);
+
   if (!supabase) {
     const batchKey = new Date().toISOString();
     const ids = [];
@@ -105,7 +156,7 @@ export async function createAppointments({ client, barberId, serviceIds, dateKey
       const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `apt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       demoAppointments.push({
         id,
-        phone: normalizePhone(client.phone),
+        phone: cleanPhone,
         clientName: client.name,
         barberId,
         serviceId,
@@ -119,13 +170,53 @@ export async function createAppointments({ client, barberId, serviceIds, dateKey
     return ids;
   }
 
-  const { data, error } = await supabase.rpc("chatbot_create_appointments", {
+  // 1. Upsert defensivo na tabela clients: garante existência física do cliente e ID válido
+  let resolvedClientId = null;
+  try {
+    const { data: upsertData } = await supabase
+      .from("clients")
+      .upsert(
+        {
+          name: client.name.trim(),
+          phone: cleanPhone,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "phone" }
+      )
+      .select("id")
+      .single();
+
+    if (upsertData?.id) {
+      resolvedClientId = upsertData.id;
+    }
+  } catch (err) {
+    console.warn("[appointmentsRepository] Aviso no upsert prévio de cliente:", err);
+  }
+
+  // 2. Chamada à RPC oficial chatbot_create_appointments
+  const timeFormatted = time.length === 5 ? `${time}:00` : time;
+  let rpcRes = await supabase.rpc("chatbot_create_appointments", {
+    p_client_name: client.name.trim(),
+    p_client_phone: cleanPhone,
     p_barber_id: barberId,
     p_service_ids: serviceIds,
-    p_client_name: client.name,
-    p_client_phone: normalizePhone(client.phone),
-    p_appointment_at: toTimestamp(dateKey, time),
+    p_date: dateKey,
+    p_time: timeFormatted,
+    p_notes: "Agendamento realizado via Chatbot",
   });
+
+  // Se a função no banco tiver uma assinatura com p_appointment_at (fallback retrocompatível)
+  if (rpcRes.error && (rpcRes.error.message?.includes("Could not find the function") || rpcRes.error.code === "PGRST202")) {
+    rpcRes = await supabase.rpc("chatbot_create_appointments", {
+      p_barber_id: barberId,
+      p_service_ids: serviceIds,
+      p_client_name: client.name.trim(),
+      p_client_phone: cleanPhone,
+      p_appointment_at: toTimestamp(dateKey, time),
+    });
+  }
+
+  const { data, error } = rpcRes;
 
   if (error) {
     const appError = toAppError(error);
@@ -136,9 +227,34 @@ export async function createAppointments({ client, barberId, serviceIds, dateKey
     throw appError;
   }
 
-  // A RPC devolve os ids criados. Vazio = nada gravado: falhar é melhor que "confirmar" sem registro.
+  // 3. Processamento do retorno JSONB da RPC
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    if (data.success === false) {
+      if (data.code === "TIME_SLOT_UNAVAILABLE" || data.code === "CONFLICT") {
+        const existing = await findOwnAppointment({ client, barberId, dateKey, time });
+        if (existing) return existing.ids;
+        throw new AppError("conflict", data.message || "Horário indisponível.");
+      }
+      throw new AppError("unknown", data.message || "Não foi possível confirmar o agendamento.");
+    }
+
+    if (Array.isArray(data.appointment_ids) && data.appointment_ids.length > 0) {
+      return data.appointment_ids;
+    }
+    if (data.appointment_id) {
+      return [data.appointment_id];
+    }
+  }
+
   const ids = Array.isArray(data) ? data.filter(Boolean) : data ? [data] : [];
-  if (!ids.length) throw new AppError("unknown", "O agendamento não foi gravado no sistema da barbearia. Tente novamente.");
+  if (!ids.length) {
+    // Caso de redundância: se a RPC retornou sem IDs mas foi executada com sucesso
+    if (resolvedClientId) {
+      const own = await findOwnAppointment({ client, barberId, dateKey, time });
+      if (own?.ids?.length) return own.ids;
+    }
+    throw new AppError("unknown", "O agendamento não foi gravado no sistema da barbearia. Tente novamente.");
+  }
   return ids;
 }
 
@@ -166,11 +282,49 @@ export async function cancelAppointments({ ids, phone, dateKey, time, nowMs = Da
     demoAppointments = demoAppointments.map((a) => (idSet.has(a.id) ? { ...a, status: "cancelado" } : a));
     return;
   }
-  const { error } = await supabase.rpc("chatbot_cancel_appointments", { p_ids: ids, p_phone: normalizePhone(phone) });
-  if (error) throw toAppError(error);
+
+  const cleanPhone = normalizePhone(phone);
+  const targetIds = Array.isArray(ids) ? ids : [ids];
+
+  for (const aptId of targetIds) {
+    let rpcErr = null;
+    const res = await supabase.rpc("chatbot_cancel_appointments", {
+      p_phone: cleanPhone,
+      p_appointment_id: aptId,
+      p_reason: "Cancelamento livre via Chatbot",
+    });
+
+    if (res.error && (res.error.message?.includes("Could not find the function") || res.error.code === "PGRST202")) {
+      const altRes = await supabase.rpc("chatbot_cancel_appointments", {
+        p_ids: targetIds,
+        p_phone: cleanPhone,
+      });
+      if (altRes.error) throw toAppError(altRes.error);
+      return;
+    }
+
+    if (res.error) {
+      rpcErr = res.error;
+    } else if (res.data?.success === false && res.data?.canceled_count === 0) {
+      rpcErr = new Error(res.data.message || "Agendamento não encontrado.");
+    }
+
+    if (rpcErr) {
+      // Fallback direto na tabela caso a RPC acuse restrição
+      try {
+        await supabase
+          .from("appointments")
+          .update({ status: "canceled", updated_at: new Date().toISOString() })
+          .eq("id", aptId)
+          .eq("client_phone", cleanPhone);
+      } catch {
+        throw toAppError(rpcErr);
+      }
+    }
+  }
 }
 
-/** Move TODAS as linhas da reserva mantendo o espaçamento entre elas (a RPC aplica o mesmo deslocamento). */
+/** Move TODAS as linhas da reserva mantendo o espaçamento entre elas. */
 export async function rescheduleAppointments({ ids, phone, dateKey, time, oldDateKey, oldTime, nowMs = Date.now() }) {
   // Regra 2: Reagendamento livre e autônomo pelo chat
   if (!FREE_CANCELLATION && MIN_CANCEL_LEAD_MINUTES > 0 && oldDateKey && oldTime) {
@@ -186,12 +340,33 @@ export async function rescheduleAppointments({ ids, phone, dateKey, time, oldDat
     demoAppointments = demoAppointments.map((a) => (idSet.has(a.id) ? { ...a, dateKey, time } : a));
     return;
   }
-  const { error } = await supabase.rpc("chatbot_reschedule_appointments", {
-    p_ids: ids,
-    p_phone: normalizePhone(phone),
-    p_new_at: toTimestamp(dateKey, time),
+
+  const cleanPhone = normalizePhone(phone);
+  const timeFormatted = time.length === 5 ? `${time}:00` : time;
+  const primaryId = Array.isArray(ids) ? ids[0] : ids;
+
+  let rpcRes = await supabase.rpc("chatbot_reschedule_appointments", {
+    p_phone: cleanPhone,
+    p_appointment_id: primaryId,
+    p_new_date: dateKey,
+    p_new_time: timeFormatted,
   });
-  if (error) throw toAppError(error);
+
+  if (rpcRes.error && (rpcRes.error.message?.includes("Could not find the function") || rpcRes.error.code === "PGRST202")) {
+    rpcRes = await supabase.rpc("chatbot_reschedule_appointments", {
+      p_ids: Array.isArray(ids) ? ids : [ids],
+      p_phone: cleanPhone,
+      p_new_at: toTimestamp(dateKey, time),
+    });
+  }
+
+  if (rpcRes.error) throw toAppError(rpcRes.error);
+  if (rpcRes.data && typeof rpcRes.data === "object" && rpcRes.data.success === false) {
+    if (rpcRes.data.code === "SLOT_OCCUPIED") {
+      throw new AppError("conflict", rpcRes.data.message || "Horário indisponível.");
+    }
+    throw new AppError("unknown", rpcRes.data.message || "Não foi possível reagendar.");
+  }
 }
 
 /**
@@ -199,30 +374,51 @@ export async function rescheduleAppointments({ ids, phone, dateKey, time, oldDat
  */
 export async function joinWaitlist({ client, barberId, barberName, serviceIds = [], dateKey, preferredTime }) {
   const supabase = requireSupabase();
+  const cleanPhone = normalizePhone(client?.phone || "");
   const entry = {
     id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `wl-${Date.now()}`,
     client_name: client?.name || "Cliente",
-    client_phone: normalizePhone(client?.phone || ""),
+    client_phone: cleanPhone,
     barber_id: barberId || null,
     barber_name: barberName || "Qualquer",
     date_key: dateKey,
     preferred_time: preferredTime || null,
     service_ids: serviceIds,
     created_at: new Date().toISOString(),
-    status: "aguardando",
+    status: "waiting",
   };
 
   demoWaitlist.push(entry);
 
   if (supabase) {
     try {
-      const { error } = await supabase.from("waitlist").insert([entry]);
-      if (error) {
-        // Fallback gracioso se a tabela waitlist não tiver sido criada ainda no banco
-        console.warn("[appointmentsRepository] Observação waitlist:", error.message);
+      const timeFormatted = preferredTime ? (preferredTime.length === 5 ? `${preferredTime}:00` : preferredTime) : null;
+      const { error: rpcErr } = await supabase.rpc("chatbot_join_waitlist", {
+        p_client_name: client?.name || "Cliente",
+        p_client_phone: cleanPhone,
+        p_barber_id: barberId || null,
+        p_service_name: barberName ? `Atendimento com ${barberName}` : "Geral",
+        p_service_ids: serviceIds,
+        p_desired_date: dateKey,
+        p_desired_time: timeFormatted,
+      });
+
+      if (rpcErr) {
+        // Fallback direto na tabela waitlist
+        await supabase.from("waitlist").insert([
+          {
+            client_name: client?.name || "Cliente",
+            client_phone: cleanPhone,
+            barber_id: barberId || null,
+            desired_date: dateKey,
+            desired_time: timeFormatted,
+            service_ids: serviceIds,
+            status: "waiting",
+          },
+        ]);
       }
     } catch (err) {
-      console.warn("[appointmentsRepository] Erro ao gravar waitlist:", err);
+      console.warn("[appointmentsRepository] Erro ao registrar waitlist:", err);
     }
   }
 

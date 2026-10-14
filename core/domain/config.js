@@ -45,7 +45,12 @@ export const STATUS = Object.freeze({
   CONFIRMED: "confirmado",
   CANCELLED: "cancelado",
 });
-export const ACTIVE_STATUSES = Object.freeze([STATUS.PENDING, STATUS.CONFIRMED]);
+export const ACTIVE_STATUSES = Object.freeze([
+  STATUS.PENDING,
+  STATUS.CONFIRMED,
+  "confirmed",
+  "pending",
+]);
 
 /**
  * Como agrupar linhas de `appointments` que pertencem à MESMA reserva
