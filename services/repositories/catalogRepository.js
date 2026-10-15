@@ -204,89 +204,141 @@ export function resolveHaircutImageUrl(supabase, rawPath) {
  * Se não houver correspondência exata e segura, retorna null para ativar o fallback limpo e elegante
  * individual em vez de repetir a foto de outro corte.
  */
+/**
+ * Normaliza uma string removendo caracteres especiais para comparação de chave única.
+ */
+export function normalizeKey(str) {
+  return normalizeStr(str).replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Regras estritas de correspondência entre serviços oficiais e a galeria de cortes:
+ * - Serviços com foto cadastrada recebem sua foto exclusiva.
+ * - Serviços COMBO (com "+", " e ") nunca roubam fotos de serviços avulsos (ex: barba simples).
+ * - Serviços avulsos (como barba simples) excluem fotos que contenham cortes completos.
+ */
+const SERVICE_PHOTO_RULES = {
+  degrade: {
+    isCombo: false,
+    exactMatches: ["degrade", "degradenavalhado", "degradecabelo", "cortedegrade", "midfade", "fade"],
+    keywords: ["degrade", "navalhado"],
+    excludeKeywords: ["sobrancelha", "barba", "barboterapia"],
+  },
+  cortesotesoura: {
+    isCombo: false,
+    exactMatches: ["cortesotesoura", "cortesotesouro", "cortetesoura", "tesoura", "cortesotesoura100", "tesouro"],
+    keywords: ["tesoura", "tesouro"],
+    excludeKeywords: ["maquina", "degrade", "barba"],
+  },
+  lowfadeouamericano: {
+    isCombo: false,
+    exactMatches: ["lowfadeouamericano", "lowfade", "americano", "corteamericano", "lowfaderecorte"],
+    keywords: ["lowfade", "americano"],
+    excludeKeywords: ["barba", "sobrancelha"],
+  },
+  barboterapia: {
+    isCombo: false,
+    exactMatches: ["barboterapia", "terapiadebarba"],
+    keywords: ["barboterapia"],
+    excludeKeywords: ["corte"],
+  },
+  corteebarboterapia: {
+    isCombo: true,
+    exactMatches: ["corteebarboterapia", "cortemaisbarboterapia", "combocortebarboterapia"],
+    requiredKeywords: ["corte", "barboterapia"],
+  },
+  cortebarbasimples: {
+    isCombo: true,
+    exactMatches: ["cortebarbasimples", "cortemaisbarbasimples", "corteebarba", "combocortebarba"],
+    requiredKeywords: ["corte", "barba"],
+  },
+  barbacavanhaqueoudesignsimples: {
+    isCombo: false,
+    exactMatches: ["barbasimplesoucavanhaque", "barbasimples", "barbacavanhaque", "cavanhaque", "barbadesign", "barba"],
+    keywords: ["cavanhaque", "barba simples"],
+    excludeKeywords: ["corte", "barboterapia", "terapia"],
+  },
+  degradesobrancelha: {
+    isCombo: true,
+    exactMatches: ["degradesobrancelha", "degrademaissobrancelha", "combodegradesobrancelha"],
+    requiredKeywords: ["degrade", "sobrancelha"],
+  },
+  socialsobrancelha: {
+    isCombo: true,
+    exactMatches: ["socialsobrancelha", "socialmaissobrancelha", "combosocialsobrancelha"],
+    requiredKeywords: ["social", "sobrancelha"],
+  },
+  cortesimplesousocial: {
+    isCombo: false,
+    exactMatches: ["cortesocial", "cortesimples", "social", "cortesimplesousocial", "cortemasculinosocial"],
+    keywords: ["social"],
+    excludeKeywords: ["sobrancelha", "barba", "barboterapia", "degrade"],
+  },
+  limpezadepele: {
+    isCombo: false,
+    exactMatches: ["limpezadepele", "limpezafacial", "pele", "tratamentofacial"],
+    keywords: ["limpeza", "pele"],
+    excludeKeywords: ["corte", "degrade"],
+  },
+};
+
 export function findGalleryPhoto(service, galleryList, usedGalleryIds = new Set()) {
   if (!galleryList?.length) return null;
 
   const serviceNameNorm = normalizeStr(service.name);
+  const serviceKey = normalizeKey(service.name);
   const serviceId = String(service.id);
 
   // Considera apenas fotos ainda não associadas a outro serviço (garantia de exclusividade)
   const availableItems = galleryList.filter((g) => !usedGalleryIds.has(g.id));
   if (!availableItems.length) return null;
 
-  // 1. Vínculo explícito e prioritário por service_id (se presente na tabela haircut_gallery)
+  // 1. Vínculo prioritário explícito por service_id se cadastrado na galeria
   const byServiceId = availableItems.find(
     (g) => g.service_id && String(g.service_id) === serviceId
   );
   if (byServiceId) return byServiceId;
 
-  // 2. Título da galeria idêntico ao nome do serviço
+  // 2. Regras estritas de correspondência por serviço oficial
+  const rule = SERVICE_PHOTO_RULES[serviceKey];
+  if (rule) {
+    // 2.1 Correspondência exata em títulos ou categorias cadastradas
+    for (const g of availableItems) {
+      const gTitleKey = normalizeKey(g.title);
+      const gCatKey = normalizeKey(g.category);
+      if (rule.exactMatches.includes(gTitleKey) || rule.exactMatches.includes(gCatKey)) {
+        return g;
+      }
+    }
+
+    // 2.2 Se for serviço COMBO, exige que ambos os termos existam no título da foto
+    if (rule.isCombo && rule.requiredKeywords) {
+      for (const g of availableItems) {
+        const normTitle = normalizeStr(g.title);
+        const hasAll = rule.requiredKeywords.every((k) => normTitle.includes(k));
+        if (hasAll) return g;
+      }
+      return null; // Combos sem foto específica não roubam fotos de serviços simples
+    }
+
+    // 2.3 Para serviços avulsos, valida keywords e bloqueia excludeKeywords
+    for (const g of availableItems) {
+      const normTitle = normalizeStr(g.title);
+      if (rule.excludeKeywords && rule.excludeKeywords.some((ex) => normTitle.includes(ex))) {
+        continue;
+      }
+      if (rule.keywords && rule.keywords.some((k) => normTitle.includes(k))) {
+        return g;
+      }
+    }
+  }
+
+  // 3. Título da galeria idêntico ao nome do serviço
   const byExactTitle = availableItems.find(
     (g) => g.title && normalizeStr(g.title) === serviceNameNorm
   );
   if (byExactTitle) return byExactTitle;
 
-  // 3. Categoria da galeria idêntica ao nome do serviço
-  const byExactCategory = availableItems.find(
-    (g) => g.category && normalizeStr(g.category) === serviceNameNorm
-  );
-  if (byExactCategory) return byExactCategory;
-
-  // 4. Casamento semântico balanceado:
-  // Se o serviço for composto (ex.: "Degradê + Sobrancelha"), não pode casar com um item que tenha
-  // apenas "Degradê" no título se existirem outros termos significativos ausentes.
-  const serviceTokens = extractTokens(service.name);
-  if (serviceTokens.length === 0) return null;
-
-  let bestMatch = null;
-  let bestScore = 0;
-  let minTokenDifference = Infinity;
-
-  for (const g of availableItems) {
-    const titleTokens = extractTokens(g.title || "");
-    const categoryTokens = extractTokens(g.category || "");
-    const allTokens = [...new Set([...titleTokens, ...categoryTokens])];
-    if (allTokens.length === 0) continue;
-
-    // Calcula quantos tokens do serviço estão presentes na foto da galeria
-    let matchedCount = 0;
-    for (const sTok of serviceTokens) {
-      if (
-        allTokens.some(
-          (gTok) =>
-            gTok === sTok ||
-            (gTok.length >= 4 && sTok.startsWith(gTok)) ||
-            (sTok.length >= 4 && gTok.startsWith(sTok))
-        )
-      ) {
-        matchedCount += 1;
-      }
-    }
-
-    // Para evitar que "Degradê + Sobrancelha" pegue foto que é só "Degradê":
-    // Exigimos que TODOS os tokens principais do serviço existam na galeria,
-    // OU que a proporção de cobertura seja alta (> 75%) e sem sobra excessiva.
-    const coverage = matchedCount / serviceTokens.length;
-    const diff = Math.abs(allTokens.length - serviceTokens.length);
-
-    // Só é aceitável se cobrir completamente os termos do serviço
-    // (ex.: se tem "sobrancelha", a foto também DEVE conter "sobrancelha")
-    if (coverage >= 0.8 && matchedCount > bestScore) {
-      bestScore = matchedCount;
-      minTokenDifference = diff;
-      bestMatch = g;
-    } else if (coverage >= 0.8 && matchedCount === bestScore && diff < minTokenDifference) {
-      minTokenDifference = diff;
-      bestMatch = g;
-    }
-  }
-
-  // Se o match for satisfatório e cobrir especificamente o serviço, retorna o item
-  if (bestScore >= serviceTokens.length && bestMatch) {
-    return bestMatch;
-  }
-
-  // Caso contrário, retorna null para exibir o placeholder individual limpo
   return null;
 }
 
