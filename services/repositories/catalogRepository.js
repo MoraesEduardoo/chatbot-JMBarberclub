@@ -331,9 +331,12 @@ export function buildBarberScheduleMap(schedulesRows, barberId) {
     const day = normalizeDayOfWeek(row.day_of_week ?? row.day ?? row.weekday);
     if (day === null) continue;
 
+    // Verificação estrita de expediente: se o barbeiro marcou o dia como folga ou inativo
     const isWorking =
+      row.is_working_day !== false &&
       row.is_working !== false &&
       row.is_active !== false &&
+      row.active !== false &&
       row.closed !== true &&
       row.is_closed !== true &&
       row.status !== "closed" &&
@@ -341,11 +344,17 @@ export function buildBarberScheduleMap(schedulesRows, barberId) {
 
     const start = row.start_time || row.work_start || row.start || null;
     const end = row.end_time || row.work_end || row.end || null;
-    const lunchStart = row.lunch_start || row.break_start || row.lunchStart || null;
-    const lunchEnd = row.lunch_end || row.break_end || row.lunchEnd || null;
+    const hasLunch = row.has_lunch_break !== false;
+    const lunchStart = hasLunch
+      ? row.lunch_start || row.break_start_time || row.break_start || row.lunchStart || null
+      : null;
+    const lunchEnd = hasLunch
+      ? row.lunch_end || row.break_end_time || row.break_end || row.lunchEnd || null
+      : null;
 
     map[day] = {
       is_working: isWorking,
+      is_working_day: isWorking,
       closed: !isWorking,
       start: isWorking ? (start ? String(start).slice(0, 5) : "09:00") : null,
       end: isWorking ? (end ? String(end).slice(0, 5) : "19:00") : null,

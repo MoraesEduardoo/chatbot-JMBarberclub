@@ -21,8 +21,9 @@ export async function POST(request) {
   const adminUrl = process.env.ADMIN_PANEL_URL;
   const secret = process.env.PUSH_WEBHOOK_SECRET;
   if (!adminUrl || !secret) {
-    console.error("[notify-admin] ADMIN_PANEL_URL e/ou PUSH_WEBHOOK_SECRET não configurados — push não enviado.");
-    return NextResponse.json({ notified: false, reason: "não configurado" }, { status: 500 });
+    // Integração com painel externo via webhook de push é opcional.
+    // Retorna 200 avisando que foi ignorado propositalmente, sem gerar erro 500.
+    return NextResponse.json({ ok: true, notified: false, skipped: true, reason: "webhook_not_configured" }, { status: 200 });
   }
 
   let payload;

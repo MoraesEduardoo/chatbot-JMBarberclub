@@ -18,11 +18,11 @@ export default function DatesWidget({ ctx, act }) {
 
   // Status da disponibilidade e horários filtrados (sem horários passados)
   const { status } = ctx.availability || { status: "idle" };
-  const slots = isDateSelected
-    ? selectSlots(ctx).filter((slot) => slot.reason !== "past")
-    : [];
-
-  const hasAnyAvailable = slots.some((s) => s.available);
+  const allSlots = isDateSelected ? selectSlots(ctx) : [];
+  // FILTRO ESTRITO: Apenas horários 100% livres e disponíveis dentro do expediente real são exibidos.
+  // Horários ocupados (reservas confirmadas, concluídas, pendentes), bloqueios e pausas desaparecem imediatamente da lista.
+  const slots = allSlots.filter((slot) => slot.available);
+  const hasAnyAvailable = slots.length > 0;
 
   return (
     <div className="w-full my-2 space-y-4">
@@ -101,12 +101,12 @@ export default function DatesWidget({ ctx, act }) {
             </div>
           )}
 
-          {/* Regra 4: Se o dia estiver esgotado, oferecer entrada em Lista de Espera */}
-          {status === "ready" && (!slots.length || !hasAnyAvailable) && (
+          {/* Regra 4: Se o dia estiver esgotado ou sem horários livres, oferecer entrada em Lista de Espera */}
+          {status === "ready" && (!allSlots.length || !hasAnyAvailable) && (
             <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 text-center space-y-3">
               <p className="text-xs text-zinc-300">
-                Todos os horários de <b className="text-white font-bold">{formatDateLong(selectedDateKey)}</b> com{" "}
-                <b className="text-white font-bold">{ctx.draft?.barber?.name || "o barbeiro"}</b> estão esgotados.
+                Não há horários livres em <b className="text-white font-bold">{formatDateLong(selectedDateKey)}</b> com{" "}
+                <b className="text-white font-bold">{ctx.draft?.barber?.name || "o barbeiro"}</b>.
               </p>
               <button
                 type="button"
@@ -125,35 +125,27 @@ export default function DatesWidget({ ctx, act }) {
             </div>
           )}
 
-          {status === "ready" && slots.length > 0 && (
+          {status === "ready" && hasAnyAvailable && (
             <div className="space-y-2">
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 my-1">
                 {slots.map((slot) => {
                   const isSelected = ctx.draft?.time === slot.time;
-                  const isBooked = slot.reason === "booked";
                   return (
                     <button
                       key={slot.time}
                       type="button"
-                      disabled={!slot.available && !isBooked}
                       onClick={() => act({ type: "PICK_TIME", time: slot.time }, slot.time)}
                       className={`time-button select-none touch-manipulation transition-all cursor-pointer shadow-sm min-h-[44px] ${
                         isSelected ? "selected ring-2 ring-red-500 bg-red-600/20 text-white font-bold" : ""
-                      } ${
-                        isBooked
-                          ? "border-dashed border-zinc-700 bg-zinc-950/70 text-zinc-500 hover:border-red-500/50 hover:text-zinc-300"
-                          : !slot.available
-                          ? "opacity-30 line-through cursor-not-allowed bg-zinc-950/60"
-                          : ""
                       }`}
                     >
-                      {isBooked ? `${slot.time} (Ocupado)` : slot.time}
+                      {slot.time}
                     </button>
                   );
                 })}
               </div>
               <p className="text-[0.7rem] text-zinc-500">
-                Toque em um horário livre para agendar, ou em um horário ocupado para entrar na lista de espera.
+                Toque em um horário livre para confirmar o seu atendimento.
               </p>
             </div>
           )}

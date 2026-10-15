@@ -18,11 +18,15 @@ export async function notifyAdminPanel(appointmentId) {
       body: JSON.stringify({ appointmentId }),
     });
     const result = await response.json().catch(() => ({}));
+    if (result?.skipped || result?.reason === "webhook_not_configured" || result?.reason === "não configurado") {
+      // Notificação push externa é opcional e não configurada — agendamento já está 100% gravado no banco
+      return;
+    }
     if (!response.ok || !result.notified) {
-      console.error("[chat] Agendamento salvo, mas o painel não confirmou o aviso:", { status: response.status, result });
+      console.warn("[chat] Aviso opcional ao painel não confirmado:", { status: response.status, result });
     }
   } catch (error) {
-    console.error("[chat] Agendamento salvo, mas o aviso ao painel falhou:", error);
+    console.warn("[chat] Aviso opcional ao painel falhou:", error);
   } finally {
     clearTimeout(timeoutId);
   }

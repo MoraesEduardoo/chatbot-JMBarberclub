@@ -70,7 +70,7 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const weekday = weekdayOf(dateKey); // 0 = domingo ... 6 = sábado
   const weekdayName = WEEKDAYS_LONG[weekday] || "este dia da semana";
 
@@ -199,6 +199,44 @@ export async function createAppointmentAction({ client, barberId, serviceIds, da
         success: false,
         error: `O horário e duração do procedimento coincidem com a pausa/almoço do profissional (${lunchStart} às ${lunchEnd}). Por favor, escolha outro horário.`,
       };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // VALIDAÇÃO ESTRITA DE COLISÃO COM AGENDAMENTOS EXISTENTES NO BANCO
+  // -------------------------------------------------------------------------
+  if (url && key) {
+    try {
+      const supabaseCheck = createClient(url, key, { auth: { persistSession: false } });
+      const { data: existingAppts } = await supabaseCheck
+        .from("appointments")
+        .select("appointment_time, duration_minutes, buffer_minutes, status")
+        .eq("barber_id", barberId)
+        .eq("appointment_date", dateKey)
+        .in("status", [
+          "confirmed", "confirmado",
+          "pending", "pendente",
+          "completed", "concluido", "concluído",
+          "bloqueado", "blocked"
+        ]);
+
+      if (Array.isArray(existingAppts) && existingAppts.length > 0) {
+        for (const appt of existingAppts) {
+          if (!appt.appointment_time) continue;
+          const apptStart = timeToMinutes(appt.appointment_time);
+          const apptEnd = apptStart + Number(appt.duration_minutes || 30) + Number(appt.buffer_minutes || 10);
+          const reqStart = timeMin;
+          const reqEnd = timeMin + totalBlockDuration;
+          if (reqStart < apptEnd && reqEnd > apptStart) {
+            return {
+              success: false,
+              error: `O horário ${time} já está ocupado por outro agendamento. Por favor, escolha outro horário.`,
+            };
+          }
+        }
+      }
+    } catch {
+      // Tolera falha na pré-checagem
     }
   }
 

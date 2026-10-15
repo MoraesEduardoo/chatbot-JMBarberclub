@@ -10,7 +10,7 @@
  *   chatbot_cancel_appointments(p_ids, p_phone)                                [NOVA — 011]
  *   chatbot_reschedule_appointments(p_ids, p_phone, p_new_at)                  [NOVA — 011]
  */
-import { toTimestamp, minutesUntilAppointment } from "../../core/domain/time.js";
+import { toTimestamp, minutesUntilAppointment, timeToMinutes, minutesToTime } from "../../core/domain/time.js";
 import { groupAppointments } from "../../core/domain/appointmentGroups.js";
 import { ACTIVE_STATUSES, MIN_CANCEL_LEAD_MINUTES, FREE_CANCELLATION } from "../../core/domain/config.js";
 import { getServiceDuration } from "../../core/domain/eligibility.js";
@@ -28,23 +28,101 @@ function requireSupabase() {
   return supabase;
 }
 
-/** Horários ("HH:MM") de início já ocupados para o barbeiro no dia. */
+/** 
+ * Horários ("HH:MM") de início e intervalos já ocupados para o barbeiro no dia.
+ * Cruza a RPC chatbot_booked_times com a tabela appointments e exceções do barbeiro,
+ * garantindo remoção de horários com status ('confirmado', 'concluido', 'pendente', 'bloqueado' e pausas).
+ */
 export async function fetchBookedTimes({ barberId, dateKey }) {
   const supabase = requireSupabase();
   if (!supabase) {
-    return demoAppointments
-      .filter((a) => a.barberId === barberId && a.dateKey === dateKey && ACTIVE_STATUSES.includes(a.status))
-      .map((a) => a.time);
+    return [
+      ...new Set(
+        demoAppointments
+          .filter((a) => a.barberId === barberId && a.dateKey === dateKey && ACTIVE_STATUSES.includes(a.status))
+          .map((a) => a.time)
+      ),
+    ];
   }
-  const { data, error } = await supabase.rpc("chatbot_booked_times", { p_barber_id: barberId, p_date: dateKey });
-  if (error) throw toAppError(error);
-  return [
-    ...new Set(
-      (data || []).map((row) =>
-        String(row.booked_time || row.appointment_time || row.time || "").slice(0, 5)
-      )
-    ),
-  ].filter(Boolean);
+
+  const bookedSet = new Set();
+
+  // 1. Chamada à RPC oficial chatbot_booked_times
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc("chatbot_booked_times", {
+      p_barber_id: barberId,
+      p_date: dateKey,
+    });
+    if (!rpcError && Array.isArray(rpcData)) {
+      for (const row of rpcData) {
+        const t = String(row.booked_time || row.appointment_time || row.time || "").slice(0, 5);
+        if (t) bookedSet.add(t);
+      }
+    }
+  } catch (err) {
+    console.warn("[appointmentsRepository] Aviso RPC chatbot_booked_times:", err);
+  }
+
+  // 2. Consulta direta à tabela appointments para garantir cobertura total de status:
+  // 'confirmado', 'concluido', 'pendente', 'confirmed', 'pending', 'completed', 'bloqueado' e pausas
+  try {
+    const { data: aptData, error: aptError } = await supabase
+      .from("appointments")
+      .select("appointment_time, appointment_end_time, duration_minutes, buffer_minutes, status, notes")
+      .eq("barber_id", barberId)
+      .eq("appointment_date", dateKey)
+      .in("status", [
+        "confirmed",
+        "confirmado",
+        "pending",
+        "pendente",
+        "completed",
+        "concluido",
+        "concluído",
+        "bloqueado",
+        "blocked",
+      ]);
+
+    if (!aptError && Array.isArray(aptData)) {
+      for (const apt of aptData) {
+        if (!apt.appointment_time) continue;
+        const startMin = timeToMinutes(apt.appointment_time);
+        const duration = Number(apt.duration_minutes || 30);
+        const buffer = Number(apt.buffer_minutes || 10);
+        const endMin = startMin + duration + buffer;
+
+        // Ocupa todas as células de 30 minutos atingidas por este atendimento + respiro técnico
+        for (let m = startMin; m < endMin; m += 30) {
+          bookedSet.add(minutesToTime(m));
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[appointmentsRepository] Aviso consulta appointments:", err);
+  }
+
+  // 3. Consulta de exceções de expediente (barber_exceptions)
+  try {
+    const { data: excData } = await supabase
+      .from("barber_exceptions")
+      .select("is_available, start_time, end_time")
+      .eq("barber_id", barberId)
+      .eq("exception_date", dateKey);
+
+    if (Array.isArray(excData)) {
+      for (const exc of excData) {
+        if (exc.is_available === false && exc.start_time && exc.end_time) {
+          const sMin = timeToMinutes(exc.start_time);
+          const eMin = timeToMinutes(exc.end_time);
+          for (let m = sMin; m < eMin; m += 30) bookedSet.add(minutesToTime(m));
+        }
+      }
+    }
+  } catch {
+    // Ignora caso tabela de exceções não exista
+  }
+
+  return Array.from(bookedSet).sort();
 }
 
 /** Agendamentos ATIVOS e futuros do telefone, já agrupados (1 grupo = 1 reserva do cliente). */

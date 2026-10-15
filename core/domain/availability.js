@@ -30,9 +30,11 @@ export function businessHoursOn(dateKey, barberSchedule = null) {
       // Verifica se o dia está explicitamente desativado / fechado / folga
       const isClosed =
         custom.is_working === false ||
+        custom.is_working_day === false ||
+        custom.is_active === false ||
+        custom.active === false ||
         custom.closed === true ||
         custom.is_closed === true ||
-        custom.is_active === false ||
         custom.status === "closed" ||
         custom.status === "fechado";
 
@@ -97,9 +99,9 @@ export function gridFor(dateKey, barberSchedule = null) {
     minutesToTime(start + i * SLOT_MINUTES),
   );
 
-  // Intervalo de almoço/pausa (suporta lunchStart/lunchEnd ou breakStart/breakEnd vindos de barber_schedules)
-  const lStart = hours.lunchStart ?? hours.breakStart ?? null;
-  const lEnd = hours.lunchEnd ?? hours.breakEnd ?? null;
+  // Intervalo de almoço/pausa (suporta lunchStart/lunchEnd, breakStart/breakEnd ou break_start_time/break_end_time)
+  const lStart = hours.lunchStart ?? hours.breakStart ?? hours.break_start_time ?? hours.lunch_start ?? null;
+  const lEnd = hours.lunchEnd ?? hours.breakEnd ?? hours.break_end_time ?? hours.lunch_end ?? null;
 
   if (!lStart || !lEnd) return allSlots;
 
