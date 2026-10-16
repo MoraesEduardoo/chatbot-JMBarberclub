@@ -33,6 +33,7 @@ const DATE_ERRORS = {
 export const T = {
   welcomeNew: "Olá! 👋 Bem-vindo ao **JM Barberclub**. Como posso ajudar?",
   welcomeBack: (name) => `Olá, **${name}**! Bem-vindo de volta 👋 Como posso ajudar?`,
+  welcomeLoyal: (name, service, barber) => `Fala, **${name}**! Que bom te ver de novo. Vai querer o seu **${service}** de sempre com o **${barber}**?`,
   menuAgain: "Como posso ajudar agora?",
   menuHint: "Você pode tocar em uma opção ou escrever, por exemplo: \"quero agendar\", \"meus agendamentos\" ou \"preços\".",
 

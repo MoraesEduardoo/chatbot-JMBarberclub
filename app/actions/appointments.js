@@ -530,3 +530,112 @@ export async function joinWaitlistAction({ client, barberId, serviceIds = [], da
     entry,
   };
 }
+
+/**
+ * =========================================================================
+ * SERVER ACTION: getLoyaltyProfileAction
+ * =========================================================================
+ * 
+ * Reconhecimento de Cliente Fiel:
+ * - Identifica clientes com 5+ agendamentos concluídos no mesmo serviço e profissional.
+ * - Retorna o perfil fiel com o serviço favorito e o barbeiro de preferência.
+ */
+export async function getLoyaltyProfileAction(phone) {
+  const cleanPhone = normalizePhone(phone);
+  if (!cleanPhone || cleanPhone.length < 8) {
+    return { isLoyal: false };
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    return { isLoyal: false };
+  }
+
+  try {
+    const supabase = createClient(url, key, { auth: { persistSession: false } });
+
+    // 1. Tenta via RPC chatbot_get_loyalty_profile
+    const rpcRes = await supabase.rpc("chatbot_get_loyalty_profile", { p_phone: cleanPhone });
+    if (!rpcRes.error && rpcRes.data && rpcRes.data.is_loyal) {
+      return {
+        isLoyal: true,
+        clientName: rpcRes.data.client_name,
+        serviceId: rpcRes.data.service_id,
+        serviceName: rpcRes.data.service_name,
+        servicePrice: rpcRes.data.service_price,
+        serviceDuration: rpcRes.data.service_duration,
+        barberId: rpcRes.data.barber_id,
+        barberName: rpcRes.data.barber_name,
+        barberAvatar: rpcRes.data.barber_avatar,
+        totalCompleted: rpcRes.data.total_completed,
+      };
+    }
+
+    // 2. Fallback com consulta direta a appointments
+    const { data: appointments, error: aptErr } = await supabase
+      .from("appointments")
+      .select("client_name, service_id, barber_id, appointment_date, status, services:services(id, name, price, duration_minutes), barbers:barbers(id, name, avatar_url, image)")
+      .ilike("client_phone", `%${cleanPhone}%`)
+      .in("status", ["completed", "concluido"]);
+
+    if (aptErr || !appointments || !appointments.length) {
+      return { isLoyal: false };
+    }
+
+    // Agrupa por service_id + barber_id
+    const comboMap = new Map();
+    for (const apt of appointments) {
+      const sId = apt.service_id || apt.services?.id;
+      const bId = apt.barber_id || apt.barbers?.id;
+      if (!sId || !bId) continue;
+      const comboKey = `${sId}_${bId}`;
+      if (!comboMap.has(comboKey)) {
+        comboMap.set(comboKey, {
+          count: 0,
+          serviceId: sId,
+          serviceName: apt.services?.name || "Serviço",
+          servicePrice: apt.services?.price || 0,
+          serviceDuration: apt.services?.duration_minutes || 30,
+          barberId: bId,
+          barberName: apt.barbers?.name || "Barbeiro",
+          barberAvatar: apt.barbers?.avatar_url || apt.barbers?.image || "",
+          clientName: apt.client_name,
+        });
+      }
+      comboMap.get(comboKey).count += 1;
+    }
+
+    // Encontra o mais frequente com count >= 5
+    let best = null;
+    for (const item of comboMap.values()) {
+      if (item.count >= 5) {
+        if (!best || item.count > best.count) {
+          best = item;
+        }
+      }
+    }
+
+    if (!best) {
+      return { isLoyal: false };
+    }
+
+    return {
+      isLoyal: true,
+      clientName: best.clientName,
+      serviceId: best.serviceId,
+      serviceName: best.serviceName,
+      servicePrice: best.servicePrice,
+      serviceDuration: best.serviceDuration,
+      barberId: best.barberId,
+      barberName: best.barberName,
+      barberAvatar: best.barberAvatar,
+      totalCompleted: best.count,
+    };
+  } catch (err) {
+    console.warn("[getLoyaltyProfileAction] Erro ao consultar perfil fiel:", err);
+    return { isLoyal: false };
+  }
+}
+

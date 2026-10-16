@@ -50,6 +50,7 @@ export function createInitialContext(now = Date.now()) {
     draft: emptyDraft(),
     availability: { status: "idle", key: null, booked: [] }, // idle | loading | ready | error
     appointments: { status: "idle", groups: [], intent: "view" },
+    loyalty: null, // Perfil de cliente fiel ({ isLoyal, serviceId, barberId, ... })
     target: null, // reserva sendo remarcada/cancelada
     afterIdentity: null, // ação a retomar depois de coletar nome/telefone
     pendingTime: null, // "sexta às 14h": guarda o 14:00 até os horários carregarem
@@ -452,6 +453,18 @@ function pickAppointment(c, fx, key, op) {
 /** Interpreta texto conforme o estado. Devolve true se entendeu (mesmo que seja para reclamar do dado). */
 function stateText(c, fx, text) {
   switch (c.state) {
+    case S.MENU: {
+      if (c.loyalty?.isLoyal && (isYes(text) || /de sempre|o de sempre|o mesmo|o costume/i.test(text))) {
+        return handle(c, fx, {
+          type: "REBOOK_FAVORITE",
+          serviceId: c.loyalty.serviceId,
+          barberId: c.loyalty.barberId,
+          serviceName: c.loyalty.serviceName,
+          barberName: c.loyalty.barberName,
+        });
+      }
+      return false;
+    }
     case S.ASK_NAME: {
       const r = parseName(text);
       if (!r.ok) { say(c, r.message); return true; }
@@ -616,8 +629,57 @@ function handle(c, fx, a) {
       if (c.state !== S.BOOT) return undefined; // StrictMode / chamada dupla
       c.client = { name: a.client?.name ?? "", phone: normalizePhone(a.client?.phone ?? "") };
       c.state = S.MENU;
-      say(c, c.client.name ? T.welcomeBack(c.client.name) : `${T.welcomeNew}\n${T.menuHint}`);
-      return fx.push({ type: "LOAD_CATALOG" });
+      c.loyalty = a.loyalty ?? null;
+      if (c.loyalty?.isLoyal && c.client.name) {
+        say(c, T.welcomeLoyal(c.client.name, c.loyalty.serviceName, c.loyalty.barberName), {
+          type: "loyalty",
+          loyalty: c.loyalty,
+        });
+      } else {
+        say(c, c.client.name ? T.welcomeBack(c.client.name) : `${T.welcomeNew}\n${T.menuHint}`);
+      }
+      fx.push({ type: "LOAD_CATALOG" });
+      if (c.client.phone && !c.loyalty) {
+        fx.push({ type: "CHECK_LOYALTY", phone: c.client.phone });
+      }
+      return undefined;
+    }
+    case "LOYALTY_LOADED": {
+      c.loyalty = a.loyalty;
+      if (c.state === S.MENU && c.loyalty?.isLoyal && c.client.name) {
+        say(c, T.welcomeLoyal(c.client.name, c.loyalty.serviceName, c.loyalty.barberName), {
+          type: "loyalty",
+          loyalty: c.loyalty,
+        });
+      }
+      return undefined;
+    }
+    case "REBOOK_FAVORITE": {
+      resetFlow(c);
+      const service = c.catalog.services.find(
+        (s) => s.id === a.serviceId || s.name === a.serviceName
+      ) || {
+        id: a.serviceId || "degrade",
+        name: a.serviceName || "Corte",
+        price: a.servicePrice || 25,
+        durationMinutes: a.serviceDuration || 30,
+      };
+      const barber = c.catalog.barbers.find(
+        (b) => b.id === a.barberId || b.name === a.barberName
+      ) || {
+        id: a.barberId,
+        name: a.barberName || "Barbeiro",
+        image: a.barberAvatar || "",
+      };
+      c.draft.services = [service];
+      c.draft.barber = barber;
+      c.state = S.CHOOSE_DATE;
+      say(
+        c,
+        `Perfeito, **${c.client.name || "amigo"}**! Vamos de **${service.name}** com **${barber.name}** ✂️\n\nEscolha o melhor dia e horário abaixo:`,
+        { type: "dates" }
+      );
+      return undefined;
     }
     case "TEXT": return onText(c, fx, a.text);
 

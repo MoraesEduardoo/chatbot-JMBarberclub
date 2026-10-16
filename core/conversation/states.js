@@ -39,4 +39,4 @@ export function scopeOf(state) {
 }
 
 /** Widgets que só aparecem na ÚLTIMA mensagem em que foram emitidos (os demais são estáticos). */
-export const INTERACTIVE_WIDGETS = new Set(["services", "barbers", "dates", "times", "summary", "appointments"]);
+export const INTERACTIVE_WIDGETS = new Set(["services", "barbers", "dates", "times", "summary", "appointments", "loyalty"]);

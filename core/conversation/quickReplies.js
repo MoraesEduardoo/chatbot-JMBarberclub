@@ -25,6 +25,19 @@ function baseChips(c) {
   switch (c.state) {
     case S.MENU:
       return [
+        c.loyalty?.isLoyal
+          ? chip(
+              "✂️ O de sempre",
+              {
+                type: "REBOOK_FAVORITE",
+                serviceId: c.loyalty.serviceId,
+                barberId: c.loyalty.barberId,
+                serviceName: c.loyalty.serviceName,
+                barberName: c.loyalty.barberName,
+              },
+              "Sim, agendar o de sempre"
+            )
+          : null,
         chip("📅 Agendar horário", { type: "START_BOOKING" }),
         MY_APPOINTMENTS,
         chip("💈 Serviços e preços", { type: "VIEW_CATALOG" }),

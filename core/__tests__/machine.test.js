@@ -486,3 +486,40 @@ test("Regra 4: cliente entra na lista de espera quando o dia está lotado", () =
   assert.equal(fx.client.name, KNOWN.name);
 });
 
+test("cliente fiel: reconhece 5+ cortes e atalho de 1 clique 'agendar o de sempre' salta para data", () => {
+  const loyalty = {
+    isLoyal: true,
+    clientName: "Eduardo",
+    serviceId: "degrade",
+    serviceName: "Degradê",
+    barberId: MATHEUS,
+    barberName: "Matheus",
+    totalCompleted: 6,
+  };
+
+  const s = createSession({ client: KNOWN });
+  // Simula recebimento do perfil fiel
+  s.send({ type: "LOYALTY_LOADED", loyalty });
+
+  // Verifica se mensagem e widget de fidelidade foram emitidos
+  assert.match(s.last(), /de sempre/i);
+  assert.equal(s.ctx.messages.at(-1).widget?.type, "loyalty");
+
+  // Testa o atalho de 1 clique
+  s.send({
+    type: "REBOOK_FAVORITE",
+    serviceId: loyalty.serviceId,
+    barberId: loyalty.barberId,
+    serviceName: loyalty.serviceName,
+    barberName: loyalty.barberName,
+  });
+
+  // Deve ir direto para CHOOSE_DATE com serviço e barbeiro pré-preenchidos
+  assert.equal(s.ctx.state, S.CHOOSE_DATE);
+  assert.equal(s.ctx.draft.services[0].id, "degrade");
+  assert.equal(s.ctx.draft.barber.id, MATHEUS);
+  assert.match(s.last(), /Degradê/);
+  assert.match(s.last(), /Matheus/);
+});
+
+

@@ -5,6 +5,7 @@ import TimesWidget from "./TimesWidget";
 import SummaryWidget from "./SummaryWidget";
 import ReceiptWidget from "./ReceiptWidget";
 import AppointmentsWidget from "./AppointmentsWidget";
+import LoyaltyWidget from "./LoyaltyWidget";
 import { CatalogWidget, HoursWidget } from "./InfoWidgets";
 import { INTERACTIVE_WIDGETS } from "@/core/conversation/states";
 
@@ -16,7 +17,7 @@ export function isWidgetLive(message, ctx) {
 
 /**
  * Despachante de widgets.
- * - Interativos (services/barbers/dates/times/summary/appointments) dependem do estado vivo e
+ * - Interativos (services/barbers/dates/times/summary/appointments/loyalty) dependem do estado vivo e
  *   só aparecem na mensagem "ativa" (ctx.activeWidgetId). Mensagens antigas ficam sem o widget,
  *   então é impossível clicar em um cartão obsoleto.
  * - Estáticos (catalogView/hours/receipt) carregam os próprios dados na mensagem.
@@ -32,6 +33,7 @@ export default function Widget({ message, ctx, act }) {
     case "times": return <TimesWidget ctx={ctx} act={act} />;
     case "summary": return <SummaryWidget ctx={ctx} act={act} />;
     case "appointments": return <AppointmentsWidget ctx={ctx} act={act} />;
+    case "loyalty": return <LoyaltyWidget loyalty={widget.loyalty} act={act} client={ctx.client} />;
     case "receipt": return <ReceiptWidget summary={widget.summary} client={ctx.client} />;
     case "catalogView": return <CatalogWidget services={widget.services} />;
     case "hours": return <HoursWidget rows={widget.rows} />;

@@ -68,6 +68,7 @@ export default function ChatbotShell() {
             </button>
           )}
 
+
           <button
             type="button"
             onClick={() => act({ type: "VIEW_APPOINTMENTS", mode: "view" }, "Meus agendamentos")}
@@ -188,6 +189,7 @@ export default function ChatbotShell() {
           </div>
         </div>
       )}
+
     </section>
   );
 }
